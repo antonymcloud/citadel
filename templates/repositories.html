@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Repositories - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-database me-2"></i>Repositories</h1>
+        <a href="{{ url_for('backup.add_repository') }}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-2"></i>Add Repository
+        </a>
+    </div>
+    
+    <div class="row">
+        {% for repo in repos %}
+        <div class="col-md-4 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ repo.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Path:</strong> {{ repo.path }}</p>
+                    <p><strong>Encryption:</strong> {{ repo.encryption or 'None' }}</p>
+                    <p><strong>Created:</strong> {{ repo.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                </div>
+                <div class="card-footer">
+                    <div class="btn-group w-100">
+                        <a href="{{ url_for('backup.repository_detail', repo_id=repo.id) }}" class="btn btn-info">
+                            <i class="fas fa-eye me-1"></i>Details
+                        </a>
+                        <a href="{{ url_for('backup.create_backup') }}?repo_id={{ repo.id }}" class="btn btn-success">
+                            <i class="fas fa-plus-circle me-1"></i>Backup
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <h4 class="alert-heading">No repositories found</h4>
+                <p>You haven't added any repositories yet. Click the "Add Repository" button to get started.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

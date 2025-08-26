@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Job Details - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-tasks me-2"></i>Job Details</h1>
+        <a href="{{ url_for('backup.list_jobs') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Jobs
+        </a>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Job Summary</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th>Job ID:</th>
+                            <td>{{ job.id }}</td>
+                        </tr>
+                        <tr>
+                            <th>Type:</th>
+                            <td>
+                                {% if job.job_type == 'create' %}
+                                    <span class="badge bg-primary">Create</span>
+                                {% elif job.job_type == 'prune' %}
+                                    <span class="badge bg-warning">Prune</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ job.job_type }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                {% if job.status == 'running' %}
+                                    <span class="badge bg-warning">Running</span>
+                                {% elif job.status == 'success' %}
+                                    <span class="badge bg-success">Success</span>
+                                {% elif job.status == 'failed' %}
+                                    <span class="badge bg-danger">Failed</span>
+                                {% elif job.status == 'cancelled' %}
+                                    <span class="badge bg-secondary">Cancelled</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ job.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Repository:</th>
+                            <td><a href="{{ url_for('backup.repository_detail', repo_id=job.repository.id) }}">{{ job.repository.name }}</a></td>
+                        </tr>
+                        {% if job.archive_name %}
+                        <tr>
+                            <th>Archive:</th>
+                            <td>{{ job.archive_name }}</td>
+                        </tr>
+                        {% endif %}
+                        
+                        {% if job.source %}
+                        <tr>
+                            <th>Source:</th>
+                            <td>
+                                <a href="{{ url_for('sources.source_detail', source_id=job.source.id) }}">
+                                    {{ job.source.name }}
+                                    {% if job.source.source_type == 'local' %}
+                                    <span class="badge bg-primary">Local</span>
+                                    {% else %}
+                                    <span class="badge bg-success">SSH</span>
+                                    {% endif %}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Source Path:</th>
+                            <td>{{ job.source.get_formatted_path() }}</td>
+                        </tr>
+                        {% elif job.source_path %}
+                        <tr>
+                            <th>Source Path:</th>
+                            <td>{{ job.source_path }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>Started:</th>
+                            <td>{{ job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        </tr>
+                        {% if job.completed_at %}
+                        <tr>
+                            <th>Completed:</th>
+                            <td>{{ job.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        </tr>
+                        <tr>
+                            <th>Duration:</th>
+                            <td>{{ (job.completed_at - job.timestamp).total_seconds() }} seconds</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Job Output</h5>
+                    {% if job.log_output %}
+                    <button class="btn btn-sm btn-light" onclick="copyToClipboard()">
+                        <i class="fas fa-copy me-1"></i>Copy
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if job.status == 'running' %}
+                    <div class="alert alert-warning">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-spinner fa-spin me-2"></i>This job is still running. The output will be available when it completes.
+                            </div>
+                            <button id="cancelJobBtn" class="btn btn-danger">
+                                <i class="fas fa-stop-circle me-2"></i>Cancel Job
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <script>
+                        // Auto-refresh the page every 5 seconds while the job is running
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 5000);
+                    </script>
+                    {% endif %}
+                    
+                    {% if job.log_output %}
+                    <pre id="jobOutput" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap;">{{ job.log_output }}</pre>
+                    <script>
+                        function copyToClipboard() {
+                            const output = document.getElementById('jobOutput');
+                            const textArea = document.createElement('textarea');
+                            textArea.value = output.textContent;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textArea);
+                            
+                            // Show a temporary tooltip
+                            const btn = event.target.closest('button');
+                            const originalText = btn.innerHTML;
+                            btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                            setTimeout(() => {
+                                btn.innerHTML = originalText;
+                            }, 2000);
+                        }
+                    </script>
+                    {% else %}
+                    <div class="alert alert-info">No output available for this job.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Handle cancel job button click
+        $('#cancelJobBtn').click(function() {
+            if (confirm('Are you sure you want to cancel this job? This cannot be undone.')) {
+                $.ajax({
+                    url: "{{ url_for('backup.cancel_job', job_id=job.id) }}",
+                    type: 'POST',
+                    success: function(response) {
+                        // Show success message and reload the page
+                        alert('Job cancelled successfully');
+                        window.location.reload();
+                    },
+                    error: function(xhr) {
+                        // Show error message
+                        var errorMessage = 'Failed to cancel job';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMessage = xhr.responseJSON.error;
+                        }
+                        alert('Error: ' + errorMessage);
+                    }
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

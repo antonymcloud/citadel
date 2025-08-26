@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Repository Details - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-database me-2"></i>{{ repo.name }}</h1>
+        <div class="btn-group">
+            <a href="{{ url_for('backup.create_backup') }}?repo_id={{ repo.id }}" class="btn btn-success">
+                <i class="fas fa-plus-circle me-2"></i>Create Backup
+            </a>
+            <a href="{{ url_for('backup.list_repositories') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Repositories
+            </a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Repository Details</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th>Name:</th>
+                            <td>{{ repo.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Path:</th>
+                            <td>{{ repo.path }}</td>
+                        </tr>
+                        <tr>
+                            <th>Encryption:</th>
+                            <td>{{ repo.encryption or 'None' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Created:</th>
+                            <td>{{ repo.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">Maintenance</h5>
+                </div>
+                <div class="card-body">
+                    <form id="pruneForm" action="{{ url_for('backup.prune_repository', repo_id=repo.id) }}" method="POST">
+                        <h6>Prune Repository</h6>
+                        <p class="text-muted">Remove archives according to retention policy</p>
+                        
+                        <div class="mb-3">
+                            <label for="keep_daily" class="form-label">Keep daily</label>
+                            <input type="number" class="form-control" id="keep_daily" name="keep_daily" value="7" min="1">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="keep_weekly" class="form-label">Keep weekly</label>
+                            <input type="number" class="form-control" id="keep_weekly" name="keep_weekly" value="4" min="1">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="keep_monthly" class="form-label">Keep monthly</label>
+                            <input type="number" class="form-control" id="keep_monthly" name="keep_monthly" value="6" min="1">
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning">Prune Repository</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Archives</h5>
+                    <button id="refreshArchives" class="btn btn-sm btn-light">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="archivesList">
+                        <div class="text-center">
+                            <button id="loadArchives" class="btn btn-primary">
+                                <i class="fas fa-list me-2"></i>Load Archives
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card shadow mt-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Recent Jobs</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Started</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in jobs %}
+                                <tr>
+                                    <td>{{ job.id }}</td>
+                                    <td>
+                                        {% if job.job_type == 'create' %}
+                                            <span class="badge bg-primary">Create</span>
+                                        {% elif job.job_type == 'prune' %}
+                                            <span class="badge bg-warning">Prune</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ job.job_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.status == 'running' %}
+                                            <span class="badge bg-warning">Running</span>
+                                        {% elif job.status == 'success' %}
+                                            <span class="badge bg-success">Success</span>
+                                        {% elif job.status == 'failed' %}
+                                            <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ job.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('backup.job_detail', job_id=job.id) }}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No jobs found for this repository</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Load archives list
+        $('#loadArchives, #refreshArchives').click(function() {
+            $('#archivesList').html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Loading archives...</p></div>');
+            
+            $.getJSON("{{ url_for('backup.list_archives', repo_id=repo.id) }}", function(data) {
+                if (data.status === 'running') {
+                    let jobId = data.job_id;
+                    checkJobStatus(jobId);
+                } else {
+                    showError('Failed to start list job');
+                }
+            }).fail(function() {
+                showError('Failed to communicate with server');
+            });
+        });
+        
+        // Prune repository form submission
+        $('#pruneForm').submit(function(e) {
+            e.preventDefault();
+            
+            $.ajax({
+                url: $(this).attr('action'),
+                type: 'POST',
+                data: $(this).serialize(),
+                success: function(data) {
+                    if (data.status === 'running') {
+                        window.location.href = "{{ url_for('backup.job_detail', job_id=0) }}".replace('0', data.job_id);
+                    } else {
+                        showError('Failed to start prune job');
+                    }
+                },
+                error: function() {
+                    showError('Failed to communicate with server');
+                }
+            });
+        });
+        
+        // Check job status periodically
+        function checkJobStatus(jobId) {
+            $.getJSON("{{ url_for('backup.get_job_status', job_id=0) }}".replace('0', jobId), function(data) {
+                if (data.status === 'running') {
+                    // Still running, check again in 2 seconds
+                    setTimeout(function() { checkJobStatus(jobId); }, 2000);
+                } else if (data.status === 'success') {
+                    // Job completed, parse and display the archives
+                    displayArchives(data.log_output);
+                } else {
+                    // Job failed
+                    showError('Failed to list archives: ' + data.log_output);
+                }
+            }).fail(function() {
+                showError('Failed to check job status');
+            });
+        }
+        
+        // Display archives from job output
+        function displayArchives(output) {
+            if (!output) {
+                $('#archivesList').html('<div class="alert alert-info">No output available from the list operation.</div>');
+                return;
+            }
+            
+            // Parse both STDOUT and STDERR sections
+            let outputParts = output.split('STDERR:');
+            let stdout = outputParts[0].replace('STDOUT:', '').trim();
+            
+            // Log the raw output to help with debugging
+            console.log("Raw output:", stdout);
+            
+            // Split by lines
+            let lines = stdout.split('\n');
+            let archives = [];
+            
+            for (let line of lines) {
+                line = line.trim();
+                if (line && !line.startsWith('Mock') && !line.startsWith('--')) {
+                    // Extract the archive name (first part of the line before multiple spaces)
+                    let archiveName = line.split(/\s{2,}/)[0];
+                    if (archiveName) {
+                        archives.push(archiveName);
+                    }
+                }
+            }
+            
+            console.log("Parsed archives:", archives);
+            
+            if (archives.length > 0) {
+                let html = '<div class="list-group">';
+                for (let archive of archives) {
+                    html += '<div class="list-group-item">' + archive + '</div>';
+                }
+                html += '</div>';
+                $('#archivesList').html(html);
+            } else {
+                $('#archivesList').html('<div class="alert alert-info">No archives found in this repository.</div>');
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            $('#archivesList').html('<div class="alert alert-danger">' + message + '</div>');
+        }
+    });
+</script>
+{% endblock %}
