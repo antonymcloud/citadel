@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Create Backup - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-plus-circle me-2"></i>Create Backup</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Backup Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('backup.create_backup') }}">
+                        <div class="mb-3">
+                            <label for="repository_id" class="form-label">Repository</label>
+                            <select class="form-select" id="repository_id" name="repository_id" required>
+                                <option value="">Select a repository</option>
+                                {% for repo in repos %}
+                                <option value="{{ repo.id }}">{{ repo.name }} ({{ repo.path }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="source_path" class="form-label">Source Path</label>
+                            <input type="text" class="form-control" id="source_path" name="source_path" required>
+                            <div class="form-text">The directory or file to backup</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="archive_name" class="form-label">Archive Name (optional)</label>
+                            <input type="text" class="form-control" id="archive_name" name="archive_name">
+                            <div class="form-text">Default: auto-generated name with timestamp</div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Start Backup</button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Help</h5>
+                </div>
+                <div class="card-body">
+                    <h5>Source Path</h5>
+                    <p>The path to the directory or file you want to back up. Examples:</p>
+                    <ul>
+                        <li><code>/home/user/documents</code></li>
+                        <li><code>/var/www</code></li>
+                        <li><code>/etc</code></li>
+                    </ul>
+                    
+                    <h5>Archive Name</h5>
+                    <p>If not specified, an archive name will be automatically generated using the current date and time.</p>
+                    <p>You can use a custom name like:</p>
+                    <ul>
+                        <li><code>daily-backup</code></li>
+                        <li><code>website-backup</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
