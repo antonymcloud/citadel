@@ -73,8 +73,51 @@ if len(sys.argv) > 1:
             print(f"{archive_name}                    {today.strftime('%a, %Y-%m-%d %H:%M:%S')}")
     
     elif command == "create":
+        # Get command details
+        is_verbose = "--verbose" in sys.argv
+        show_stats = "--stats" in sys.argv
+        show_progress = "--progress" in sys.argv
+        
+        # Get archive and source path info
+        archive_path = None
+        source_path = None
+        for arg in sys.argv:
+            if "::" in arg:
+                archive_path = arg
+                archive_name = arg.split("::")[-1]
+            elif arg not in ["create", "--verbose", "--stats", "--progress"] and not arg.startswith("--"):
+                source_path = arg
+        
         # Mock create output
         print("Creating archive...")
+        
+        if show_progress:
+            print("Scanning source directories...")
+            print("                       100.00% Analyzing files")
+            print("                       100.00% Creating archive")
+            print("                       100.00% Compressing data")
+        
+        if is_verbose:
+            print(f"Processing files from source directory: {source_path}")
+            print(f"Creating backup archive: {archive_path}")
+            print("Archive created with 1234 files, 5678 directories")
+        
+        if show_stats:
+            print("------------------------------------------------------------------------------")
+            print("Archive name: " + (archive_name if archive_path else "archive"))
+            print("Archive fingerprint: 01234567890123456789012345678901234567890123456789")
+            print("Time (start): " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            print("Time (end):   " + (datetime.datetime.now() + datetime.timedelta(seconds=5)).strftime("%Y-%m-%d %H:%M:%S"))
+            print("Duration: 5.00 seconds")
+            print("Number of files: 1234")
+            print("Utilization of max. archive size: 0%")
+            print("                       Original size      Compressed size    Deduplicated size")
+            print("This archive:               1.00 GB            500.00 MB            250.00 MB")
+            print("All archives:               5.00 GB              2.50 GB              1.25 GB")
+            print("                       Unique chunks         Total chunks")
+            print("Chunk index:                    1000                2000")
+            print("------------------------------------------------------------------------------")
+        
         print("Archive created successfully.")
     
     elif command == "init":

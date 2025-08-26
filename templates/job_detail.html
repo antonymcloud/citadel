@@ -53,7 +53,7 @@
                         </tr>
                         <tr>
                             <th>Repository:</th>
-                            <td>{{ job.repository.name }}</td>
+                            <td><a href="{{ url_for('backup.repository_detail', repo_id=job.repository.id) }}">{{ job.repository.name }}</a></td>
                         </tr>
                         {% if job.archive_name %}
                         <tr>
@@ -88,8 +88,13 @@
         
         <div class="col-md-8">
             <div class="card shadow">
-                <div class="card-header bg-secondary text-white">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Job Output</h5>
+                    {% if job.log_output %}
+                    <button class="btn btn-sm btn-light" onclick="copyToClipboard()">
+                        <i class="fas fa-copy me-1"></i>Copy
+                    </button>
+                    {% endif %}
                 </div>
                 <div class="card-body">
                     {% if job.status == 'running' %}
@@ -113,7 +118,26 @@
                     {% endif %}
                     
                     {% if job.log_output %}
-                    <pre class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto;">{{ job.log_output }}</pre>
+                    <pre id="jobOutput" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap;">{{ job.log_output }}</pre>
+                    <script>
+                        function copyToClipboard() {
+                            const output = document.getElementById('jobOutput');
+                            const textArea = document.createElement('textarea');
+                            textArea.value = output.textContent;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textArea);
+                            
+                            // Show a temporary tooltip
+                            const btn = event.target.closest('button');
+                            const originalText = btn.innerHTML;
+                            btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                            setTimeout(() => {
+                                btn.innerHTML = originalText;
+                            }, 2000);
+                        }
+                    </script>
                     {% else %}
                     <div class="alert alert-info">No output available for this job.</div>
                     {% endif %}

@@ -70,8 +70,19 @@ def run_borg_command(job_id, args):
             print(f"STDOUT: {result.stdout}")
             print(f"STDERR: {result.stderr}")
             
+            # Combine output for better display
+            combined_output = ""
+            if result.stdout and result.stdout.strip():
+                combined_output += result.stdout
+            
+            if result.stderr and result.stderr.strip():
+                # Only add a separator if we have both stdout and stderr
+                if combined_output:
+                    combined_output += "\n\n"
+                combined_output += result.stderr
+            
             # Update job with results
-            job.log_output = f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
+            job.log_output = combined_output
             job.completed_at = datetime.utcnow()
             
             if result.returncode == 0:
@@ -131,10 +142,21 @@ def borg_init(repo_path, encryption=None, passphrase=None):
         text=True
     )
     
+    # Combine output for better display
+    combined_output = ""
+    if result.stdout and result.stdout.strip():
+        combined_output += result.stdout
+    
+    if result.stderr and result.stderr.strip():
+        # Only add a separator if we have both stdout and stderr
+        if combined_output:
+            combined_output += "\n\n"
+        combined_output += result.stderr
+    
     return {
         "success": result.returncode == 0,
-        "output": result.stdout,
-        "error": result.stderr
+        "output": combined_output,
+        "error": result.stderr if result.returncode != 0 else ""
     }
 
 @backup_bp.route('/repositories')

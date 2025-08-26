@@ -186,7 +186,6 @@
                 data: $(this).serialize(),
                 success: function(data) {
                     if (data.status === 'running') {
-                        alert('Prune job started with ID: ' + data.job_id);
                         window.location.href = "{{ url_for('backup.job_detail', job_id=0) }}".replace('0', data.job_id);
                     } else {
                         showError('Failed to start prune job');
