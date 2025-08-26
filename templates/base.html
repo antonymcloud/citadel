@@ -104,6 +104,11 @@
                         <i class="fas fa-tasks me-2"></i>Jobs
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'schedules.list_schedules' %}active{% endif %}" href="{{ url_for('schedules.list_schedules') }}">
+                        <i class="fas fa-calendar-alt me-2"></i>Schedules
+                    </a>
+                </li>
                 {% if current_user.is_admin %}
                 <li class="nav-item mt-3">
                     <h6 class="sidebar-heading px-3 mt-4 mb-1 text-muted">

@@ -1,11 +1,14 @@
 from flask import Flask, render_template, redirect, url_for, flash, jsonify, request
 from flask_login import LoginManager, login_required, current_user
 import os
+import atexit
 from dotenv import load_dotenv
-from models import db, User, Repository, Job, Source
+from models import db, User, Repository, Job, Source, Schedule
 from auth import auth_bp, init_login_manager
 from backup import backup_bp
 from backup_sources import sources_bp
+from schedules import schedules_bp
+from scheduler import init_scheduler, shutdown_scheduler
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +29,13 @@ login_manager = init_login_manager(app)
 app.register_blueprint(auth_bp)
 app.register_blueprint(backup_bp)
 app.register_blueprint(sources_bp)
+app.register_blueprint(schedules_bp)
+
+# Initialize scheduler
+init_scheduler(app)
+
+# Register shutdown function
+atexit.register(shutdown_scheduler)
 
 @app.route('/')
 def index():
@@ -43,7 +53,9 @@ def dashboard():
                   .order_by(Job.timestamp.desc()).limit(10).all()
     # Also get sources for the dashboard
     sources = Source.query.filter_by(user_id=current_user.id).all()
-    return render_template('dashboard.html', repos=repos, jobs=recent_jobs, sources=sources)
+    # Get active schedules
+    schedules = Schedule.query.filter_by(user_id=current_user.id, is_active=True).all()
+    return render_template('dashboard.html', repos=repos, jobs=recent_jobs, sources=sources, schedules=schedules)
 
 @app.route('/api/jobs')
 @login_required

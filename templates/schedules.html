@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Schedules - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-calendar-alt me-2"></i>Backup Schedules</h1>
+        <a href="{{ url_for('schedules.add_schedule') }}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-2"></i>Add Schedule
+        </a>
+    </div>
+    
+    {% if schedules %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for schedule in schedules %}
+        <div class="col">
+            <div class="card h-100 shadow">
+                <div class="card-header d-flex justify-content-between align-items-center {% if schedule.is_active %}bg-success{% else %}bg-secondary{% endif %} text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        {{ schedule.name }}
+                    </h5>
+                    <span class="badge bg-light text-dark">
+                        {{ schedule.frequency|capitalize }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>Repository:</strong> {{ schedule.repository.name }}
+                    </p>
+                    <p class="card-text">
+                        <strong>Source:</strong> {{ schedule.source.name }}
+                        {% if schedule.source.source_type == 'local' %}
+                        <span class="badge bg-primary">Local</span>
+                        {% else %}
+                        <span class="badge bg-success">SSH</span>
+                        {% endif %}
+                    </p>
+                    <p class="card-text">
+                        <strong>Time:</strong> 
+                        {% if schedule.frequency == 'daily' %}
+                            Every day at {{ schedule.hour }}:{{ '%02d'|format(schedule.minute) }}
+                        {% elif schedule.frequency == 'weekly' %}
+                            Every {{ schedule.day_of_week|capitalize }} at {{ schedule.hour }}:{{ '%02d'|format(schedule.minute) }}
+                        {% elif schedule.frequency == 'monthly' %}
+                            Day {{ schedule.day_of_month }} of each month at {{ schedule.hour }}:{{ '%02d'|format(schedule.minute) }}
+                        {% endif %}
+                    </p>
+                    <p class="card-text">
+                        <strong>Status:</strong>
+                        {% if schedule.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </p>
+                    {% if schedule.next_run %}
+                    <p class="card-text">
+                        <small class="text-muted">Next run: {{ schedule.next_run.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('schedules.schedule_detail', schedule_id=schedule.id) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-info-circle me-1"></i>Details
+                        </a>
+                        <a href="{{ url_for('schedules.edit_schedule', schedule_id=schedule.id) }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-calendar-alt fa-4x text-muted mb-3"></i>
+            <h4>No backup schedules defined</h4>
+            <p class="text-muted">Add a schedule to automate your backups</p>
+            <a href="{{ url_for('schedules.add_schedule') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>Add Your First Schedule
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
