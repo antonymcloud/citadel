@@ -129,7 +129,23 @@
                     </div>
                     {% endif %}
                     
-                    <pre id="jobOutput" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap;">{{ job.log_output }}</pre>
+                    <div id="jobOutput" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto;">
+                        <div id="structuredOutput">
+                            <!-- Structured output will be rendered here -->
+                        </div>
+                        <pre id="rawOutput" style="display: none; white-space: pre-wrap;">{{ job.log_output }}</pre>
+                    </div>
+                    
+                    <div class="mt-3 d-flex justify-content-between">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggleRawOutput">
+                            <label class="form-check-label" for="toggleRawOutput">Show Raw Output</label>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="copyToClipboard()">
+                            <i class="fas fa-copy me-1"></i>Copy
+                        </button>
+                    </div>
+                    
                     <script>
                         // Auto-scroll to bottom of output
                         function scrollOutputToBottom() {
@@ -137,11 +153,202 @@
                             output.scrollTop = output.scrollHeight;
                         }
                         
-                        // Initial scroll to bottom
-                        scrollOutputToBottom();
+                        // Format a JSON string for display
+                        function formatJsonOutput(jsonStr) {
+                            try {
+                                // Try to parse the JSON
+                                const data = JSON.parse(jsonStr);
+                                const structuredOutput = document.getElementById('structuredOutput');
+                                structuredOutput.innerHTML = '';
+                                
+                                // Process structured data array
+                                if (data.structured_data && Array.isArray(data.structured_data)) {
+                                    data.structured_data.forEach(item => {
+                                        const msgDiv = document.createElement('div');
+                                        msgDiv.className = 'mb-2';
+                                        
+                                        // Format based on the type of message following Borg's format
+                                        if (item.type === 'log_message') {
+                                            // Standard log messages
+                                            let badgeClass = 'bg-info';
+                                            let icon = 'info-circle';
+                                            
+                                            if (item.levelname === 'ERROR') {
+                                                badgeClass = 'bg-danger';
+                                                icon = 'exclamation-circle';
+                                            } else if (item.levelname === 'WARNING') {
+                                                badgeClass = 'bg-warning';
+                                                icon = 'exclamation-triangle';
+                                            }
+                                            
+                                            msgDiv.innerHTML = `
+                                                <div class="d-flex">
+                                                    <span class="badge ${badgeClass} me-2"><i class="fas fa-${icon}"></i></span>
+                                                    <div>${item.message}</div>
+                                                </div>
+                                            `;
+                                        } else if (item.type === 'progress_percent') {
+                                            // Progress updates
+                                            if (item.finished) {
+                                                msgDiv.innerHTML = `
+                                                    <div class="alert alert-success">
+                                                        <i class="fas fa-check-circle me-2"></i>Operation completed
+                                                    </div>
+                                                `;
+                                            } else {
+                                                const percent = item.current ? Math.round((item.current / item.total) * 100) : 0;
+                                                msgDiv.innerHTML = `
+                                                    <div>
+                                                        <small class="text-muted">${item.message || ''}</small>
+                                                        <div class="progress">
+                                                            <div class="progress-bar" role="progressbar" 
+                                                                style="width: ${percent}%" 
+                                                                aria-valuenow="${percent}" 
+                                                                aria-valuemin="0" 
+                                                                aria-valuemax="100">
+                                                                ${percent}%
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                `;
+                                            }
+                                        } else if (item.type === 'progress_message') {
+                                            // Simple progress messages
+                                            if (item.finished) {
+                                                msgDiv.innerHTML = `
+                                                    <div class="alert alert-success">
+                                                        <i class="fas fa-check-circle me-2"></i>${item.msgid || 'Operation'} completed
+                                                    </div>
+                                                `;
+                                            } else {
+                                                msgDiv.innerHTML = `
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                                        <div>${item.message || 'Processing...'}</div>
+                                                    </div>
+                                                `;
+                                            }
+                                        } else if (item.type === 'file_status') {
+                                            // File status updates (single character status)
+                                            let statusText = '';
+                                            let statusBadge = '';
+                                            
+                                            switch(item.status) {
+                                                case 'A':
+                                                    statusText = 'Added';
+                                                    statusBadge = 'bg-success';
+                                                    break;
+                                                case 'M':
+                                                    statusText = 'Modified';
+                                                    statusBadge = 'bg-warning';
+                                                    break;
+                                                case 'U':
+                                                    statusText = 'Unchanged';
+                                                    statusBadge = 'bg-info';
+                                                    break;
+                                                case 'd':
+                                                    statusText = 'Directory';
+                                                    statusBadge = 'bg-primary';
+                                                    break;
+                                                default:
+                                                    statusText = item.status;
+                                                    statusBadge = 'bg-secondary';
+                                            }
+                                            
+                                            msgDiv.innerHTML = `
+                                                <div class="d-flex">
+                                                    <span class="badge ${statusBadge} me-2">${statusText}</span>
+                                                    <div class="text-truncate">${item.path}</div>
+                                                </div>
+                                            `;
+                                        } else if (item.type === 'archive_progress') {
+                                            // Archive progress information
+                                            const originalSize = formatBytes(item.original_size);
+                                            const compressedSize = formatBytes(item.compressed_size);
+                                            const deduplicatedSize = formatBytes(item.deduplicated_size);
+                                            
+                                            msgDiv.innerHTML = `
+                                                <div class="card mb-2">
+                                                    <div class="card-header">
+                                                        <strong>Archive Progress</strong> - ${item.nfiles || 0} files processed
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <div class="row">
+                                                            <div class="col-md-4">
+                                                                <strong>Original:</strong> ${originalSize}
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <strong>Compressed:</strong> ${compressedSize}
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <strong>Deduplicated:</strong> ${deduplicatedSize}
+                                                            </div>
+                                                        </div>
+                                                        <div class="mt-2">
+                                                            <strong>Path:</strong> ${item.path || 'N/A'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        } else {
+                                            // Generic JSON
+                                            msgDiv.innerHTML = `
+                                                <div class="card mb-2">
+                                                    <div class="card-header">
+                                                        <strong>${item.type || 'JSON Data'}</strong>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <pre class="mb-0">${JSON.stringify(item, null, 2)}</pre>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }
+                                        
+                                        structuredOutput.appendChild(msgDiv);
+                                    });
+                                } else {
+                                    // If not in our expected format, just show formatted JSON
+                                    structuredOutput.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                                }
+                            } catch (e) {
+                                // If it's not valid JSON, just display as-is
+                                const structuredOutput = document.getElementById('structuredOutput');
+                                structuredOutput.innerHTML = `<pre>${jsonStr}</pre>`;
+                                console.error('Error parsing JSON:', e);
+                            }
+                            
+                            // Scroll to bottom
+                            scrollOutputToBottom();
+                        }
+                        
+                        // Format bytes to human-readable form
+                        function formatBytes(bytes, decimals = 2) {
+                            if (bytes === undefined || bytes === null) return 'N/A';
+                            if (bytes === 0) return '0 Bytes';
+                            
+                            const k = 1024;
+                            const dm = decimals < 0 ? 0 : decimals;
+                            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+                            
+                            const i = Math.floor(Math.log(bytes) / Math.log(k));
+                            
+                            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+                        }
+                        
+                        // Initial rendering of output
+                        const rawOutput = document.getElementById('rawOutput').textContent;
+                        if (rawOutput) {
+                            formatJsonOutput(rawOutput);
+                        }
+                        
+                        // Toggle between raw and formatted output
+                        document.getElementById('toggleRawOutput').addEventListener('change', function(e) {
+                            document.getElementById('structuredOutput').style.display = e.target.checked ? 'none' : 'block';
+                            document.getElementById('rawOutput').style.display = e.target.checked ? 'block' : 'none';
+                        });
                         
                         function copyToClipboard() {
-                            const output = document.getElementById('jobOutput');
+                            const output = document.getElementById('rawOutput');
                             const textArea = document.createElement('textarea');
                             textArea.value = output.textContent;
                             document.body.appendChild(textArea);
@@ -158,7 +365,10 @@
                             }, 2000);
                         }
                     </script>
+                    
+                    {% if not job.log_output %}
                     <div class="alert alert-info">No output available for this job.</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -210,9 +420,13 @@
                     
                     // Append new output if any
                     if (data.log_output) {
-                        const outputElem = document.getElementById('jobOutput');
-                        outputElem.textContent += data.log_output;
-                        scrollOutputToBottom();
+                        const outputElem = document.getElementById('rawOutput');
+                        // Completely replace the content rather than append, since we're working with JSON
+                        outputElem.textContent = data.log_output;
+                        
+                        // Format and display the JSON
+                        formatJsonOutput(data.log_output);
+                        
                         outputLength = data.total_output_length;
                     }
                 })

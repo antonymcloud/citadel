@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import subprocess
 import threading
+import json
 
 backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
 
@@ -12,6 +13,7 @@ def run_borg_command(job_id, args):
     """Run a Borg command in a separate thread and update job status"""
     # Import Flask app to get application context
     from app import app
+    import json
     
     # Use application context to access database
     with app.app_context():
@@ -61,9 +63,17 @@ def run_borg_command(job_id, args):
             # Run command with real-time output streaming
             print(f"Running command: {command_to_run} {' '.join(args)}")
             
-            # Initialize output buffer
-            job.log_output = ""
+            # Initialize output buffer for structured JSON data
+            job.log_output = json.dumps({"structured_data": []})
             db.session.commit()
+            
+            # Add --json flag to use Borg's JSON output format (if not already in args)
+            if '--json' not in args:
+                # For mock_borg.py we need to ensure it's placed before the subcommand
+                if command_to_run.endswith('mock_borg.py') and len(args) > 0:
+                    args.insert(1, '--json')  # Insert after the subcommand (create, list, etc.)
+                else:
+                    args.insert(0, '--json')
             
             # Start the process with pipe for stdout and stderr
             process = subprocess.Popen(
@@ -82,13 +92,69 @@ def run_borg_command(job_id, args):
                     with app.app_context():
                         # Fetch job again to avoid stale data
                         current_job = Job.query.get(job_id)
-                        if current_job:
-                            # Only mark actual errors as errors (not all stderr output)
-                            # Borg sends progress info to stderr, so we only prefix when it looks like an error
-                            prefix = ""
-                            if is_stderr and ('error' in line.lower() or 'exception' in line.lower() or 'warning:' in line.lower()):
-                                prefix = "[ERROR] "
-                            current_job.log_output += f"{prefix}{line}"
+                        if not current_job:
+                            continue
+                            
+                        try:
+                            # Get the current structured data
+                            current_data = json.loads(current_job.log_output)
+                            
+                            if is_stderr:
+                                # For stderr, add as a log_message entry
+                                error_obj = {
+                                    "type": "log_message",
+                                    "levelname": "ERROR" if any(err in line.lower() for err in ['error', 'exception', 'fatal']) else "WARNING",
+                                    "name": "borg.stderr",
+                                    "message": line.strip(),
+                                    "time": datetime.utcnow().timestamp()
+                                }
+                                current_data["structured_data"].append(error_obj)
+                            else:
+                                # For stdout (JSON data), try to parse as Borg JSON
+                                line = line.strip()
+                                if line:  # Skip empty lines
+                                    try:
+                                        json_obj = json.loads(line)
+                                        # Store the original object without modifications
+                                        current_data["structured_data"].append(json_obj)
+                                    except json.JSONDecodeError:
+                                        # If not valid JSON, add as a regular info message
+                                        msg_obj = {
+                                            "type": "log_message",
+                                            "levelname": "INFO",
+                                            "name": "borg.stdout",
+                                            "message": line,
+                                            "time": datetime.utcnow().timestamp()
+                                        }
+                                        current_data["structured_data"].append(msg_obj)
+                            
+                            # Update the job log
+                            current_job.log_output = json.dumps(current_data)
+                            db.session.commit()
+                        except Exception as e:
+                            print(f"Error processing output line: {e}")
+                            try:
+                                # Try to recover and continue processing
+                                current_data = json.loads(current_job.log_output)
+                                current_data["structured_data"].append({
+                                    "type": "log_message",
+                                    "levelname": "ERROR",
+                                    "name": "tower.processing",
+                                    "message": f"Error processing output: {str(e)}",
+                                    "time": datetime.utcnow().timestamp()
+                                })
+                                current_job.log_output = json.dumps(current_data)
+                            except:
+                                # If all else fails, create a new structured data container
+                                current_job.log_output = json.dumps({
+                                    "structured_data": [{
+                                        "type": "log_message",
+                                        "levelname": "ERROR",
+                                        "name": "tower.processing",
+                                        "message": f"Failed to process output: {str(e)}",
+                                        "time": datetime.utcnow().timestamp()
+                                    }]
+                                })
                             db.session.commit()
             
             # Create threads to read stdout and stderr concurrently
@@ -137,6 +203,9 @@ def borg_init(repo_path, encryption=None, passphrase=None):
     args = ["init"]
     if encryption:
         args.append(f"--encryption={encryption}")
+    
+    # Add JSON flag
+    args.append("--json")
     args.append(repo_path)
     
     env = os.environ.copy()
@@ -176,7 +245,20 @@ def borg_init(repo_path, encryption=None, passphrase=None):
     # Capture output from the process
     stdout, stderr = process.communicate()
     
-    # Combine output for better display
+    try:
+        # Try to parse stdout as JSON
+        if stdout and stdout.strip():
+            json_data = json.loads(stdout)
+            return {
+                "success": process.returncode == 0,
+                "output": stdout,
+                "json_data": json_data,
+                "error": stderr if process.returncode != 0 else ""
+            }
+    except json.JSONDecodeError:
+        pass
+    
+    # Combine output for better display if not JSON
     combined_output = ""
     if stdout and stdout.strip():
         combined_output += stdout
@@ -321,6 +403,7 @@ def create_backup():
             "--verbose",
             "--stats",
             "--progress",
+            "--json",
             archive_path,
             source_path
         ]
@@ -424,7 +507,7 @@ def list_archives(repo_id):
     db.session.commit()
     
     # Run command in background thread
-    args = ["list", repo.path]
+    args = ["list", "--json", repo.path]
     thread = threading.Thread(
         target=run_borg_command,
         args=(job.id, args)
@@ -462,6 +545,7 @@ def prune_repository(repo_id):
     args = [
         "prune",
         "--stats",  # Add stats for more detailed output
+        "--json",
         f"--keep-daily={keep_daily}",
         f"--keep-weekly={keep_weekly}",
         f"--keep-monthly={keep_monthly}",
