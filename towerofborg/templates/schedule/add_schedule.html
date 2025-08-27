@@ -1,0 +1,196 @@
+{% extends "common/base.html" %}
+
+{% block title %}Add Schedule - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-plus-circle me-2"></i>Add Backup Schedule</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Schedule Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('schedules.add_schedule') }}" id="scheduleForm">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Schedule Name</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                            <div class="form-text">A friendly name to identify this backup schedule</div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="repository_id" class="form-label">Repository</label>
+                                <select class="form-select" id="repository_id" name="repository_id" required>
+                                    <option value="">Select a repository</option>
+                                    {% for repo in repos %}
+                                    <option value="{{ repo.id }}">{{ repo.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="source_id" class="form-label">Source</label>
+                                <select class="form-select" id="source_id" name="source_id" required>
+                                    <option value="">Select a source</option>
+                                    {% for source in sources %}
+                                    <option value="{{ source.id }}">
+                                        {{ source.name }} 
+                                        {% if source.source_type == 'local' %}
+                                        (Local)
+                                        {% else %}
+                                        (SSH)
+                                        {% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="archive_prefix" class="form-label">Archive Name Prefix (optional)</label>
+                            <input type="text" class="form-control" id="archive_prefix" name="archive_prefix">
+                            <div class="form-text">Will be combined with date/time for unique archive names</div>
+                        </div>
+                        
+                        <hr>
+                        <h5>Schedule Settings</h5>
+                        
+                        <div class="mb-3">
+                            <label for="frequency" class="form-label">Frequency</label>
+                            <select class="form-select" id="frequency" name="frequency" required>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="hour" class="form-label">Hour (0-23)</label>
+                                <input type="number" class="form-control" id="hour" name="hour" min="0" max="23" value="1" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="minute" class="form-label">Minute (0-59)</label>
+                                <input type="number" class="form-control" id="minute" name="minute" min="0" max="59" value="0" required>
+                            </div>
+                        </div>
+                        
+                        <!-- Weekly option - only shown when frequency is weekly -->
+                        <div class="mb-3" id="weekly_options" style="display:none;">
+                            <label for="day_of_week" class="form-label">Day of Week</label>
+                            <select class="form-select" id="day_of_week" name="day_of_week">
+                                <option value="mon">Monday</option>
+                                <option value="tue">Tuesday</option>
+                                <option value="wed">Wednesday</option>
+                                <option value="thu">Thursday</option>
+                                <option value="fri">Friday</option>
+                                <option value="sat">Saturday</option>
+                                <option value="sun">Sunday</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Monthly option - only shown when frequency is monthly -->
+                        <div class="mb-3" id="monthly_options" style="display:none;">
+                            <label for="day_of_month" class="form-label">Day of Month (1-31)</label>
+                            <input type="number" class="form-control" id="day_of_month" name="day_of_month" min="1" max="31" value="1">
+                            <div class="form-text">For months with fewer days, the last day will be used</div>
+                        </div>
+                        
+                        <hr>
+                        <h5>Retention Settings</h5>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="auto_prune" name="auto_prune" checked>
+                            <label class="form-check-label" for="auto_prune">Automatically prune after backup</label>
+                        </div>
+                        
+                        <div class="row mb-3" id="prune_options">
+                            <div class="col-md-4">
+                                <label for="keep_daily" class="form-label">Keep Daily</label>
+                                <input type="number" class="form-control" id="keep_daily" name="keep_daily" min="1" value="7">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="keep_weekly" class="form-label">Keep Weekly</label>
+                                <input type="number" class="form-control" id="keep_weekly" name="keep_weekly" min="0" value="4">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="keep_monthly" class="form-label">Keep Monthly</label>
+                                <input type="number" class="form-control" id="keep_monthly" name="keep_monthly" min="0" value="6">
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Create Schedule</button>
+                            <a href="{{ url_for('schedules.list_schedules') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Help</h5>
+                </div>
+                <div class="card-body">
+                    <h5>Frequency Options</h5>
+                    <ul>
+                        <li><strong>Daily:</strong> Run every day at the specified time</li>
+                        <li><strong>Weekly:</strong> Run once per week on the specified day</li>
+                        <li><strong>Monthly:</strong> Run once per month on the specified day</li>
+                    </ul>
+                    
+                    <h5>Retention Settings</h5>
+                    <p>Configure how many backup archives to keep:</p>
+                    <ul>
+                        <li><strong>Keep Daily:</strong> Number of daily backups to keep</li>
+                        <li><strong>Keep Weekly:</strong> Number of weekly backups to keep</li>
+                        <li><strong>Keep Monthly:</strong> Number of monthly backups to keep</li>
+                    </ul>
+                    <p>Older backups will be automatically pruned when auto-prune is enabled.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const frequencySelect = document.getElementById('frequency');
+        const weeklyOptions = document.getElementById('weekly_options');
+        const monthlyOptions = document.getElementById('monthly_options');
+        const pruneOptions = document.getElementById('prune_options');
+        const autoPruneCheck = document.getElementById('auto_prune');
+        
+        // Function to toggle frequency-specific options
+        function toggleFrequencyOptions() {
+            if (frequencySelect.value === 'weekly') {
+                weeklyOptions.style.display = 'block';
+                monthlyOptions.style.display = 'none';
+            } else if (frequencySelect.value === 'monthly') {
+                weeklyOptions.style.display = 'none';
+                monthlyOptions.style.display = 'block';
+            } else {
+                weeklyOptions.style.display = 'none';
+                monthlyOptions.style.display = 'none';
+            }
+        }
+        
+        // Function to toggle prune options
+        function togglePruneOptions() {
+            pruneOptions.style.display = autoPruneCheck.checked ? 'flex' : 'none';
+        }
+        
+        // Set initial state
+        toggleFrequencyOptions();
+        togglePruneOptions();
+        
+        // Add event listeners
+        frequencySelect.addEventListener('change', toggleFrequencyOptions);
+        autoPruneCheck.addEventListener('change', togglePruneOptions);
+    });
+</script>
+{% endblock %}

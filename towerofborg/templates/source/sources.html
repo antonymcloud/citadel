@@ -1,0 +1,72 @@
+{% extends "common/base.html" %}
+
+{% block title %}Sources - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-folder me-2"></i>Backup Sources</h1>
+        <a href="{{ url_for('sources.add_source') }}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-2"></i>Add Source
+        </a>
+    </div>
+    
+    {% if sources %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for source in sources %}
+        <div class="col">
+            <div class="card h-100 shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        {% if source.source_type == 'local' %}
+                        <i class="fas fa-hdd me-2 text-primary"></i>
+                        {% else %}
+                        <i class="fas fa-server me-2 text-success"></i>
+                        {% endif %}
+                        {{ source.name }}
+                    </h5>
+                    <span class="badge {% if source.source_type == 'local' %}bg-primary{% else %}bg-success{% endif %}">
+                        {{ source.source_type }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>Path:</strong> {{ source.path }}
+                    </p>
+                    {% if source.source_type == 'ssh' %}
+                    <p class="card-text">
+                        <strong>SSH:</strong> {{ source.ssh_user }}@{{ source.ssh_host }}:{{ source.ssh_port }}
+                    </p>
+                    {% endif %}
+                    <p class="card-text">
+                        <small class="text-muted">Created: {{ source.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('sources.source_detail', source_id=source.id) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-info-circle me-1"></i>Details
+                        </a>
+                        <a href="{{ url_for('sources.edit_source', source_id=source.id) }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
+            <h4>No backup sources defined</h4>
+            <p class="text-muted">Add a source to get started with backups</p>
+            <a href="{{ url_for('sources.add_source') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>Add Your First Source
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

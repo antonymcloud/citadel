@@ -1,0 +1,228 @@
+{% extends "common/base.html" %}
+
+{% block title %}Schedule Details - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-calendar-alt me-2"></i>{{ schedule.name }}</h1>
+        <div>
+            <form method="POST" action="{{ url_for('schedules.run_schedule_now', schedule_id=schedule.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-success me-2">
+                    <i class="fas fa-play me-1"></i>Run Now
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('schedules.toggle_schedule', schedule_id=schedule.id) }}" class="d-inline">
+                {% if schedule.is_active %}
+                <button type="submit" class="btn btn-warning me-2">
+                    <i class="fas fa-pause me-1"></i>Pause
+                </button>
+                {% else %}
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="fas fa-play me-1"></i>Activate
+                </button>
+                {% endif %}
+            </form>
+            <a href="{{ url_for('schedules.edit_schedule', schedule_id=schedule.id) }}" class="btn btn-primary me-2">
+                <i class="fas fa-edit me-1"></i>Edit
+            </a>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                <i class="fas fa-trash-alt me-1"></i>Delete
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <!-- Schedule Details -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Schedule Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Status</h6>
+                            {% if schedule.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-warning">Inactive</span>
+                            {% endif %}
+                            
+                            <h6 class="fw-bold mt-3">Schedule Type</h6>
+                            <p>
+                                {% if schedule.frequency == 'daily' %}
+                                Daily at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
+                                {% elif schedule.frequency == 'weekly' %}
+                                Weekly on 
+                                {% if schedule.day_of_week == 'mon' %}Monday{% endif %}
+                                {% if schedule.day_of_week == 'tue' %}Tuesday{% endif %}
+                                {% if schedule.day_of_week == 'wed' %}Wednesday{% endif %}
+                                {% if schedule.day_of_week == 'thu' %}Thursday{% endif %}
+                                {% if schedule.day_of_week == 'fri' %}Friday{% endif %}
+                                {% if schedule.day_of_week == 'sat' %}Saturday{% endif %}
+                                {% if schedule.day_of_week == 'sun' %}Sunday{% endif %}
+                                at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
+                                {% elif schedule.frequency == 'monthly' %}
+                                Monthly on day {{ schedule.day_of_month }} at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
+                                {% endif %}
+                            </p>
+                            
+                            <h6 class="fw-bold mt-3">Source</h6>
+                            <p>
+                                {{ schedule.source.name }} 
+                                {% if schedule.source.source_type == 'local' %}
+                                (Local)
+                                {% else %}
+                                (SSH)
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Last Run</h6>
+                            <p>
+                                {% if schedule.last_run %}
+                                {{ schedule.last_run.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {% else %}
+                                Never
+                                {% endif %}
+                            </p>
+                            
+                            <h6 class="fw-bold mt-3">Next Run</h6>
+                            <p>
+                                {% if schedule.next_run and schedule.is_active %}
+                                {{ schedule.next_run.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {% else %}
+                                Not scheduled
+                                {% endif %}
+                            </p>
+                            
+                            <h6 class="fw-bold mt-3">Repository</h6>
+                            <p>{{ schedule.repository.name }}</p>
+                            
+                            <h6 class="fw-bold mt-3">Archive Prefix</h6>
+                            <p>{{ schedule.archive_prefix or "Default" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retention Settings -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Retention Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Auto-Prune</h6>
+                            <p>
+                                {% if schedule.auto_prune %}
+                                <i class="fas fa-check-circle text-success"></i> Enabled
+                                {% else %}
+                                <i class="fas fa-times-circle text-danger"></i> Disabled
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            {% if schedule.auto_prune %}
+                            <h6 class="fw-bold">Keep Settings</h6>
+                            <ul class="list-unstyled">
+                                <li>Daily: {{ schedule.keep_daily }}</li>
+                                <li>Weekly: {{ schedule.keep_weekly }}</li>
+                                <li>Monthly: {{ schedule.keep_monthly }}</li>
+                            </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <!-- Recent Jobs -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Jobs</h5>
+                </div>
+                <div class="card-body">
+                    {% if jobs %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in jobs %}
+                                <tr>
+                                    <td>{{ job.id }}</td>
+                                    <td>
+                                        {% if job.job_type == 'create' %}
+                                        <span class="badge bg-primary">Backup</span>
+                                        {% elif job.job_type == 'prune' %}
+                                        <span class="badge bg-info">Prune</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ job.job_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.status == 'success' %}
+                                        <span class="badge bg-success">Success</span>
+                                        {% elif job.status == 'running' %}
+                                        <span class="badge bg-warning">Running</span>
+                                        {% elif job.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ job.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('backup.job_detail', job_id=job.id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>No jobs have been run for this schedule yet.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the schedule <strong>{{ schedule.name }}</strong>?</p>
+                <p class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('schedules.delete_schedule', schedule_id=schedule.id) }}">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

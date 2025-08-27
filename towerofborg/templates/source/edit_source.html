@@ -1,0 +1,96 @@
+{% extends "common/base.html" %}
+
+{% block title %}Edit Source - Tower of Borg{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-edit me-2"></i>Edit Backup Source</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Source Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('sources.edit_source', source_id=source.id) }}" id="sourceForm">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Source Name</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ source.name }}" required>
+                            <div class="form-text">A friendly name to identify this backup source</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="source_type" class="form-label">Source Type</label>
+                            <input type="text" class="form-control" value="{{ source.source_type }}" readonly>
+                            <div class="form-text">Source type cannot be changed after creation</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="path" class="form-label">Path</label>
+                            <input type="text" class="form-control" id="path" name="path" value="{{ source.path }}" required>
+                            <div class="form-text">The directory or file path to backup</div>
+                        </div>
+                        
+                        <!-- SSH specific fields (shown only for SSH sources) -->
+                        {% if source.source_type == 'ssh' %}
+                        <div id="ssh-fields">
+                            <div class="mb-3">
+                                <label for="ssh_host" class="form-label">SSH Host</label>
+                                <input type="text" class="form-control" id="ssh_host" name="ssh_host" value="{{ source.ssh_host }}" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="ssh_port" class="form-label">SSH Port</label>
+                                <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="{{ source.ssh_port }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="ssh_user" class="form-label">SSH User</label>
+                                <input type="text" class="form-control" id="ssh_user" name="ssh_user" value="{{ source.ssh_user }}" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="ssh_key_path" class="form-label">SSH Key Path (optional)</label>
+                                <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path" value="{{ source.ssh_key_path or '' }}">
+                                <div class="form-text">Path to private key file. Leave empty to use system default.</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            <a href="{{ url_for('sources.source_detail', source_id=source.id) }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Help</h5>
+                </div>
+                <div class="card-body">
+                    <h5>Source Types</h5>
+                    <p><strong>Local</strong>: A path on the same system where Tower of Borg is running.</p>
+                    <p><strong>Remote (SSH)</strong>: A path on a remote system accessible via SSH.</p>
+                    
+                    <h5>Path Examples</h5>
+                    <ul>
+                        <li><strong>Local</strong>: <code>/home/user/documents</code></li>
+                        <li><strong>Remote</strong>: <code>/var/www</code> (combined with SSH settings)</li>
+                    </ul>
+                    
+                    {% if source.source_type == 'ssh' %}
+                    <h5>SSH Settings</h5>
+                    <p>For remote sources, provide the SSH connection details to access the remote system.</p>
+                    <p>SSH key authentication is recommended over password authentication for security.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
