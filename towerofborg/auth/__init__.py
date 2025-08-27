@@ -15,3 +15,9 @@ def init_auth(app):
     
     # Register blueprint
     app.register_blueprint(auth_bp)
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Load a user from the database."""
+    from towerofborg.models.user import User
+    return User.query.get(int(user_id))

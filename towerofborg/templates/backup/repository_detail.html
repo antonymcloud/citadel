@@ -165,12 +165,7 @@
             $('#archivesList').html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Loading archives...</p></div>');
             
             $.getJSON("{{ url_for('backup.list_archives', repo_id=repo.id) }}", function(data) {
-                if (data.status === 'running') {
-                    let jobId = data.job_id;
-                    checkJobStatus(jobId);
-                } else {
-                    showError('Failed to start list job');
-                }
+                displayArchives(data);
             }).fail(function() {
                 showError('Failed to communicate with server');
             });
@@ -197,65 +192,58 @@
             });
         });
         
-        // Check job status periodically
-        function checkJobStatus(jobId) {
-            $.getJSON("{{ url_for('backup.get_job_status', job_id=0) }}".replace('0', jobId), function(data) {
-                if (data.status === 'running') {
-                    // Still running, check again in 2 seconds
-                    setTimeout(function() { checkJobStatus(jobId); }, 2000);
-                } else if (data.status === 'success') {
-                    // Job completed, parse and display the archives
-                    displayArchives(data.log_output);
-                } else {
-                    // Job failed
-                    showError('Failed to list archives: ' + data.log_output);
-                }
-            }).fail(function() {
-                showError('Failed to check job status');
-            });
-        }
-        
-        // Display archives from job output
-        function displayArchives(output) {
-            if (!output) {
-                $('#archivesList').html('<div class="alert alert-info">No output available from the list operation.</div>');
+        // Display archives from data
+        function displayArchives(archives) {
+            if (!archives || archives.length === 0) {
+                $('#archivesList').html('<div class="alert alert-info">No archives found in this repository.</div>');
                 return;
             }
             
-            // Parse both STDOUT and STDERR sections
-            let outputParts = output.split('STDERR:');
-            let stdout = outputParts[0].replace('STDOUT:', '').trim();
+            let html = '<div class="list-group">';
             
-            // Log the raw output to help with debugging
-            console.log("Raw output:", stdout);
-            
-            // Split by lines
-            let lines = stdout.split('\n');
-            let archives = [];
-            
-            for (let line of lines) {
-                line = line.trim();
-                if (line && !line.startsWith('Mock') && !line.startsWith('--')) {
-                    // Extract the archive name (first part of the line before multiple spaces)
-                    let archiveName = line.split(/\s{2,}/)[0];
-                    if (archiveName) {
-                        archives.push(archiveName);
-                    }
-                }
+            for (let archive of archives) {
+                let archiveName = typeof archive === 'string' ? archive : archive.name;
+                let archiveTime = archive.time ? new Date(archive.time).toLocaleString() : 'Unknown';
+                let archiveSize = archive.size ? formatSize(archive.size) : 'Unknown';
+                
+                html += `
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">${archiveName}</h5>
+                        <small>${archiveTime}</small>
+                    </div>
+                    <p class="mb-1">Size: ${archiveSize}</p>
+                    <button class="btn btn-sm btn-info mount-btn" data-archive="${archiveName}">
+                        <i class="fas fa-hdd me-1"></i>Mount
+                    </button>
+                    <button class="btn btn-sm btn-warning extract-btn" data-archive="${archiveName}">
+                        <i class="fas fa-file-export me-1"></i>Extract
+                    </button>
+                </div>`;
             }
             
-            console.log("Parsed archives:", archives);
+            html += '</div>';
+            $('#archivesList').html(html);
             
-            if (archives.length > 0) {
-                let html = '<div class="list-group">';
-                for (let archive of archives) {
-                    html += '<div class="list-group-item">' + archive + '</div>';
-                }
-                html += '</div>';
-                $('#archivesList').html(html);
-            } else {
-                $('#archivesList').html('<div class="alert alert-info">No archives found in this repository.</div>');
-            }
+            // Add event listeners for mount and extract buttons
+            $('.mount-btn').click(function() {
+                let archiveName = $(this).data('archive');
+                alert('Mount functionality for ' + archiveName + ' not implemented yet.');
+            });
+            
+            $('.extract-btn').click(function() {
+                let archiveName = $(this).data('archive');
+                alert('Extract functionality for ' + archiveName + ' not implemented yet.');
+            });
+        }
+        
+        // Format file size in human-readable format
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
         
         // Show error message

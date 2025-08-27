@@ -94,7 +94,7 @@ def add_schedule():
 
 @schedules_bp.route('/<int:schedule_id>')
 @login_required
-def view_schedule(schedule_id):
+def schedule_detail(schedule_id):
     """View a schedule and its history"""
     schedule = Schedule.query.get_or_404(schedule_id)
     
@@ -106,7 +106,7 @@ def view_schedule(schedule_id):
     # Get jobs associated with this schedule
     jobs = Job.query.join(Job.schedules).filter(Schedule.id == schedule_id).order_by(Job.timestamp.desc()).limit(10).all()
     
-    return render_template('schedule/view_schedule.html', schedule=schedule, jobs=jobs)
+    return render_template('schedule/schedule_detail.html', schedule=schedule, jobs=jobs)
 
 @schedules_bp.route('/<int:schedule_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -178,7 +178,7 @@ def edit_schedule(schedule_id):
         db.session.commit()
         
         flash('Schedule updated successfully.', 'success')
-        return redirect(url_for('schedules.view_schedule', schedule_id=schedule.id))
+        return redirect(url_for('schedules.schedule_detail', schedule_id=schedule.id))
     
     return render_template('schedule/edit_schedule.html', 
                           schedule=schedule,
@@ -207,4 +207,72 @@ def toggle_schedule(schedule_id):
     status = 'activated' if schedule.is_active else 'deactivated'
     flash(f'Schedule {status} successfully.', 'success')
     
-    return redirect(url_for('schedules.view_schedule', schedule_id=schedule.id))
+    return redirect(url_for('schedules.schedule_detail', schedule_id=schedule.id))
+
+@schedules_bp.route('/<int:schedule_id>/delete', methods=['POST'])
+@login_required
+def delete_schedule(schedule_id):
+    """Delete a schedule"""
+    schedule = Schedule.query.get_or_404(schedule_id)
+    
+    # Security check
+    if schedule.user_id != current_user.id:
+        flash('You do not have permission to delete this schedule.', 'danger')
+        return redirect(url_for('schedules.list_schedules'))
+    
+    # Delete schedule
+    db.session.delete(schedule)
+    db.session.commit()
+    
+    flash('Schedule deleted successfully.', 'success')
+    return redirect(url_for('schedules.list_schedules'))
+
+@schedules_bp.route('/<int:schedule_id>/run', methods=['POST'])
+@login_required
+def run_schedule_now(schedule_id):
+    """Run a schedule immediately"""
+    schedule = Schedule.query.get_or_404(schedule_id)
+    
+    # Security check
+    if schedule.user_id != current_user.id:
+        flash('You do not have permission to run this schedule.', 'danger')
+        return redirect(url_for('schedules.list_schedules'))
+    
+    # Create a new job for this schedule
+    repository = Repository.query.get(schedule.repository_id)
+    source = Source.query.get(schedule.source_id)
+    
+    if not repository or not source:
+        flash('Repository or source not found.', 'danger')
+        return redirect(url_for('schedules.schedule_detail', schedule_id=schedule.id))
+    
+    from datetime import datetime
+    from towerofborg.backup.utils import run_backup_job
+    
+    # Generate archive name with timestamp
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    prefix = schedule.archive_prefix or 'backup'
+    archive_name = f"{prefix}_{timestamp}"
+    
+    # Create the job
+    job = Job(
+        job_type='create',
+        status='pending',
+        repository_id=repository.id,
+        user_id=current_user.id,
+        archive_name=archive_name,
+        source_id=source.id
+    )
+    
+    db.session.add(job)
+    db.session.flush()  # Get the job ID without committing
+    
+    # Associate job with schedule
+    job.schedules.append(schedule)
+    db.session.commit()
+    
+    # Run the backup job
+    run_backup_job(job.id)
+    
+    flash('Backup job started.', 'success')
+    return redirect(url_for('backup.job_detail', job_id=job.id))

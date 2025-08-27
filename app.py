@@ -2,6 +2,9 @@
 from towerofborg import create_app
 import os
 
+# Set environment variables for development
+os.environ['MOCK_BORG'] = 'false'
+
 app = create_app()
 
 if __name__ == "__main__":

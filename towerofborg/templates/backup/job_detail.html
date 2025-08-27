@@ -106,21 +106,8 @@
             
             {# Display job statistics if available #}
             {% set metadata = job.get_metadata() %}
-            <div class="card shadow mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Debug Information</h5>
-                </div>
-                <div class="card-body">
-                    <p>Has metadata: {{ metadata is not none }}</p>
-                    <p>Metadata keys: {{ metadata.keys()|list }}</p>
-                    <p>Has stats: {{ 'stats' in metadata }}</p>
-                    {% if 'stats' in metadata %}
-                        <p>Stats keys: {{ metadata.stats.keys()|list }}</p>
-                    {% endif %}
-                </div>
-            </div>
             
-            {% if metadata and metadata.stats %}
+            {% if metadata and 'stats' in metadata %}
             <div class="card shadow mb-4">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Backup Statistics</h5>
@@ -134,24 +121,24 @@
                         </tr>
                         {% endif %}
                         
-                        {% if metadata.stats.original_size is defined %}
+                        {% if metadata.stats.this_archive_original_size is defined %}
                         <tr>
                             <th><i class="fas fa-database me-2"></i>Original Size:</th>
-                            <td class="font-weight-bold">{{ metadata.stats.original_size|filesizeformat }}</td>
+                            <td class="font-weight-bold">{{ metadata.stats.this_archive_original_size }}</td>
                         </tr>
                         {% endif %}
                         
-                        {% if metadata.stats.compressed_size is defined %}
+                        {% if metadata.stats.this_archive_compressed_size is defined %}
                         <tr>
                             <th><i class="fas fa-compress me-2"></i>Compressed Size:</th>
-                            <td class="font-weight-bold">{{ metadata.stats.compressed_size|filesizeformat }}</td>
+                            <td class="font-weight-bold">{{ metadata.stats.this_archive_compressed_size }}</td>
                         </tr>
                         {% endif %}
                         
-                        {% if metadata.stats.deduplicated_size is defined %}
+                        {% if metadata.stats.this_archive_deduplicated_size is defined %}
                         <tr>
                             <th><i class="fas fa-clone me-2"></i>Deduplicated Size:</th>
-                            <td class="font-weight-bold">{{ metadata.stats.deduplicated_size|filesizeformat }}</td>
+                            <td class="font-weight-bold">{{ metadata.stats.this_archive_deduplicated_size }}</td>
                         </tr>
                         {% endif %}
                         
@@ -174,13 +161,13 @@
                         {% if metadata.stats.unique_chunks_size is defined %}
                         <tr>
                             <th>Chunks Size:</th>
-                            <td>{{ metadata.stats.unique_chunks_size|filesizeformat }}</td>
+                            <td>{{ metadata.stats.unique_chunks_size }}</td>
                         </tr>
                         {% endif %}
                         {% if metadata.stats.unique_chunks_avg_size is defined %}
                         <tr>
                             <th>Average Chunk Size:</th>
-                            <td>{{ metadata.stats.unique_chunks_avg_size|filesizeformat }}</td>
+                            <td>{{ metadata.stats.unique_chunks_avg_size }}</td>
                         </tr>
                         {% endif %}
                     </table>
@@ -203,11 +190,11 @@
                         </tr>
                         {% endif %}
                     </table>
-                    {% endif %}                        {% if metadata.stats.compressed_size is defined and metadata.stats.original_size is defined %}
+                    {% endif %}                        {% if metadata.stats.compression_ratio is defined %}
                         <tr>
                             <th><i class="fas fa-percentage me-2"></i>Compression Ratio:</th>
                             <td>
-                                {% set ratio = (metadata.stats.compressed_size / metadata.stats.original_size * 100)|round(1) %}
+                                {% set ratio = ((1 / metadata.stats.compression_ratio) * 100)|round(1) %}
                                 {% set savings = (100 - ratio)|round(1) %}
                                 <div>
                                     <strong>{{ ratio }}%</strong> of original size (saved {{ savings }}%)
@@ -219,11 +206,11 @@
                         </tr>
                         {% endif %}
                         
-                        {% if metadata.stats.deduplicated_size is defined and metadata.stats.original_size is defined %}
+                        {% if metadata.stats.deduplication_ratio is defined %}
                         <tr>
                             <th><i class="fas fa-percentage me-2"></i>Deduplication Ratio:</th>
                             <td>
-                                {% set ratio = (metadata.stats.deduplicated_size / metadata.stats.original_size * 100)|round(1) %}
+                                {% set ratio = ((1 / metadata.stats.deduplication_ratio) * 100)|round(1) %}
                                 {% set savings = (100 - ratio)|round(1) %}
                                 <div>
                                     <strong>{{ ratio }}%</strong> of original size (saved {{ savings }}%)
@@ -246,20 +233,24 @@
                             <table class="table table-sm mb-0">
                                 <tr>
                                     <th>All Archives Size:</th>
-                                    <td>{{ metadata.stats.all_archives_original_size|filesizeformat }}</td>
+                                    <td>{{ metadata.stats.all_archives_original_size }}</td>
                                 </tr>
                                 <tr>
                                     <th>All Archives Compressed:</th>
-                                    <td>{{ metadata.stats.all_archives_compressed_size|filesizeformat }}</td>
+                                    <td>{{ metadata.stats.all_archives_compressed_size }}</td>
                                 </tr>
                                 <tr>
                                     <th>All Archives Deduplicated:</th>
-                                    <td>{{ metadata.stats.all_archives_deduplicated_size|filesizeformat }}</td>
+                                    <td>{{ metadata.stats.all_archives_deduplicated_size }}</td>
                                 </tr>
                                 {% if metadata.stats.all_archives_original_size and metadata.stats.all_archives_deduplicated_size %}
                                 <tr>
                                     <th>Total Space Saved:</th>
-                                    <td>{{ (metadata.stats.all_archives_original_size - metadata.stats.all_archives_deduplicated_size)|filesizeformat }}</td>
+                                    <td>
+                                    {% set original_bytes = metadata.stats.all_archives_original_size|string %}
+                                    {% set deduplicated_bytes = metadata.stats.all_archives_deduplicated_size|string %}
+                                    {{ original_bytes }} - {{ deduplicated_bytes }}
+                                    </td>
                                 </tr>
                                 {% endif %}
                             </table>

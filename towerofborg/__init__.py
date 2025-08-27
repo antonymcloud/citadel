@@ -1,21 +1,10 @@
 """Tower of Borg - A web interface for Borg backup."""
 
 from flask import Flask, render_template, redirect, url_for, jsonify
-from flask_login import LoginManager, current_user, login_required
+from flask_login import current_user, login_required
 import os
 import atexit
 from dotenv import load_dotenv
-
-# Import models directly
-from towerofborg.models import db
-from towerofborg.models.user import User
-from towerofborg.models.repository import Repository
-from towerofborg.models.job import Job
-from towerofborg.models.source import Source
-from towerofborg.models.schedule import Schedule
-
-# Initialize login manager
-login_manager = LoginManager()
 
 def create_app(config=None):
     """Create and configure the Flask application."""
@@ -37,10 +26,17 @@ def create_app(config=None):
     # Load environment variables starting with TOWEROFBORG_
     app.config.from_prefixed_env(prefix='TOWEROFBORG')
     
-    # Initialize extensions
+    # Initialize database
+    from towerofborg.models import db
     db.init_app(app)
     
-    # Import blueprint modules
+    # Import modules
+    from towerofborg.models.user import User
+    from towerofborg.models.repository import Repository
+    from towerofborg.models.job import Job
+    from towerofborg.models.source import Source
+    from towerofborg.models.schedule import Schedule
+    
     from towerofborg.auth import init_auth, auth_bp
     from towerofborg.backup import init_backup, backup_bp
     from towerofborg.sources import init_sources, sources_bp

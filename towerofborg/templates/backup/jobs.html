@@ -108,7 +108,7 @@
             var jobId = $(this).data('job-id');
             if (confirm('Are you sure you want to cancel job #' + jobId + '? This cannot be undone.')) {
                 $.ajax({
-                    url: "{{ url_for('backup.cancel_job', job_id=0) }}".replace('0', jobId),
+                    url: "{{ url_for('backup.api_cancel_job', job_id=0) }}".replace('0', jobId),
                     type: 'POST',
                     success: function(response) {
                         // Show success message and reload the page

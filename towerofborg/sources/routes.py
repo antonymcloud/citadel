@@ -61,7 +61,7 @@ def add_source():
 
 @sources_bp.route('/<int:source_id>')
 @login_required
-def view_source(source_id):
+def source_detail(source_id):
     source = Source.query.get_or_404(source_id)
     
     # Security check
@@ -72,7 +72,7 @@ def view_source(source_id):
     # Get jobs that used this source
     jobs = Job.query.filter_by(source_id=source_id).order_by(Job.timestamp.desc()).limit(10).all()
     
-    return render_template('source/view_source.html', source=source, jobs=jobs)
+    return render_template('source/source_detail.html', source=source, jobs=jobs)
 
 @sources_bp.route('/<int:source_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -117,7 +117,7 @@ def edit_source(source_id):
         db.session.commit()
         
         flash('Source updated successfully.', 'success')
-        return redirect(url_for('sources.view_source', source_id=source.id))
+        return redirect(url_for('sources.source_detail', source_id=source.id))
     
     return render_template('source/edit_source.html', source=source)
 
@@ -135,7 +135,7 @@ def delete_source(source_id):
     jobs = Job.query.filter_by(source_id=source_id).count()
     if jobs > 0:
         flash('This source cannot be deleted because it is used in backup jobs.', 'danger')
-        return redirect(url_for('sources.view_source', source_id=source.id))
+        return redirect(url_for('sources.source_detail', source_id=source.id))
     
     # Delete source
     db.session.delete(source)

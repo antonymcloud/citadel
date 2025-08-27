@@ -1,8 +1,8 @@
 """Authentication related models."""
 
-from towerofborg import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+from towerofborg.models import db
 
 class User(UserMixin, db.Model):
     """User model for authentication."""
@@ -27,8 +27,3 @@ class User(UserMixin, db.Model):
     
     def __repr__(self):
         return f'<User {self.username}>'
-
-@login_manager.user_loader
-def load_user(user_id):
-    """Load a user from the database."""
-    return User.query.get(int(user_id))
