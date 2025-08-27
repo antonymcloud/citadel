@@ -47,7 +47,7 @@ def login():
         else:
             flash('Login failed. Please check your username and password.', 'danger')
     
-    return render_template('login.html')
+    return render_template('auth/login.html')
 
 @auth_bp.route('/logout')
 @login_required
@@ -74,22 +74,22 @@ def register():
         
         if password != confirm_password:
             flash('Passwords do not match.', 'danger')
-            return render_template('register.html')
+            return render_template('auth/register.html')
         
         if User.query.filter_by(username=username).first():
             flash('Username already exists.', 'danger')
-            return render_template('register.html')
+            return render_template('auth/register.html')
         
         create_user(username, password)
         flash('User registered successfully. You can now log in.', 'success')
         return redirect(url_for('auth.login'))
     
-    return render_template('register.html')
+    return render_template('auth/register.html')
 
 @auth_bp.route('/profile')
 @login_required
 def profile():
-    return render_template('profile.html')
+    return render_template('auth/profile.html')
 
 @auth_bp.route('/change_password', methods=['POST'])
 @login_required

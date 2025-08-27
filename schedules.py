@@ -139,7 +139,7 @@ def execute_scheduled_backup(schedule_id):
 @login_required
 def list_schedules():
     schedules = Schedule.query.filter_by(user_id=current_user.id).all()
-    return render_template('schedules.html', schedules=schedules)
+    return render_template('schedule/schedules.html', schedules=schedules)
 
 @schedules_bp.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -164,7 +164,7 @@ def add_schedule():
             flash('Name, repository, source and frequency are required.', 'danger')
             repos = Repository.query.filter_by(user_id=current_user.id).all()
             sources = Source.query.filter_by(user_id=current_user.id).all()
-            return render_template('add_schedule.html', repos=repos, sources=sources)
+            return render_template('schedule/add_schedule.html', repos=repos, sources=sources)
         
         # Validate repository and source access
         repo = Repository.query.get(repository_id)
@@ -213,7 +213,7 @@ def add_schedule():
     # GET request - show form
     repos = Repository.query.filter_by(user_id=current_user.id).all()
     sources = Source.query.filter_by(user_id=current_user.id).all()
-    return render_template('add_schedule.html', repos=repos, sources=sources)
+    return render_template('schedule/add_schedule.html', repos=repos, sources=sources)
 
 @schedules_bp.route('/<int:schedule_id>')
 @login_required
@@ -228,7 +228,7 @@ def schedule_detail(schedule_id):
     # Get recent jobs for this schedule
     jobs = schedule.jobs.order_by(Job.timestamp.desc()).limit(10).all()
     
-    return render_template('schedule_detail.html', schedule=schedule, jobs=jobs)
+    return render_template('schedule/schedule_detail.html', schedule=schedule, jobs=jobs)
 
 @schedules_bp.route('/<int:schedule_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -261,7 +261,7 @@ def edit_schedule(schedule_id):
             flash('Name, repository, source and frequency are required.', 'danger')
             repos = Repository.query.filter_by(user_id=current_user.id).all()
             sources = Source.query.filter_by(user_id=current_user.id).all()
-            return render_template('edit_schedule.html', schedule=schedule, repos=repos, sources=sources)
+            return render_template('schedule/edit_schedule.html', schedule=schedule, repos=repos, sources=sources)
         
         # Validate repository and source access
         repo = Repository.query.get(repository_id)
@@ -311,7 +311,7 @@ def edit_schedule(schedule_id):
     # GET request - show form
     repos = Repository.query.filter_by(user_id=current_user.id).all()
     sources = Source.query.filter_by(user_id=current_user.id).all()
-    return render_template('edit_schedule.html', schedule=schedule, repos=repos, sources=sources)
+    return render_template('schedule/edit_schedule.html', schedule=schedule, repos=repos, sources=sources)
 
 @schedules_bp.route('/<int:schedule_id>/delete', methods=['POST'])
 @login_required

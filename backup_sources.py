@@ -9,7 +9,7 @@ sources_bp = Blueprint('sources', __name__, url_prefix='/sources')
 @login_required
 def list_sources():
     sources = Source.query.filter_by(user_id=current_user.id).all()
-    return render_template('sources.html', sources=sources)
+    return render_template('source/sources.html', sources=sources)
 
 @sources_bp.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -22,13 +22,13 @@ def add_source():
         # Validate inputs
         if not name or not path or not source_type:
             flash('Source name, type, and path are required.', 'danger')
-            return render_template('add_source.html')
+            return render_template('source/add_source.html')
         
         # Check if source already exists
         existing_source = Source.query.filter_by(name=name, user_id=current_user.id).first()
         if existing_source:
             flash('A source with this name already exists.', 'danger')
-            return render_template('add_source.html')
+            return render_template('source/add_source.html')
         
         # Create source object
         new_source = Source(
@@ -47,7 +47,7 @@ def add_source():
             
             if not ssh_host or not ssh_user:
                 flash('SSH host and username are required for SSH sources.', 'danger')
-                return render_template('add_source.html')
+                return render_template('source/add_source.html')
             
             new_source.ssh_host = ssh_host
             new_source.ssh_port = int(ssh_port)
@@ -60,7 +60,7 @@ def add_source():
         flash('Source added successfully.', 'success')
         return redirect(url_for('sources.list_sources'))
     
-    return render_template('add_source.html')
+    return render_template('source/add_source.html')
 
 @sources_bp.route('/<int:source_id>')
 @login_required
@@ -74,7 +74,7 @@ def source_detail(source_id):
     
     # Get jobs that used this source
     jobs = Job.query.filter_by(source_id=source_id).order_by(Job.timestamp.desc()).all()
-    return render_template('source_detail.html', source=source, jobs=jobs)
+    return render_template('source/source_detail.html', source=source, jobs=jobs)
 
 @sources_bp.route('/<int:source_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -93,7 +93,7 @@ def edit_source(source_id):
         # Validate inputs
         if not name or not path:
             flash('Source name and path are required.', 'danger')
-            return render_template('edit_source.html', source=source)
+            return render_template('source/edit_source.html', source=source)
         
         # Update source
         source.name = name
@@ -108,7 +108,7 @@ def edit_source(source_id):
             
             if not ssh_host or not ssh_user:
                 flash('SSH host and username are required for SSH sources.', 'danger')
-                return render_template('edit_source.html', source=source)
+                return render_template('source/edit_source.html', source=source)
             
             source.ssh_host = ssh_host
             source.ssh_port = int(ssh_port)
@@ -120,7 +120,7 @@ def edit_source(source_id):
         flash('Source updated successfully.', 'success')
         return redirect(url_for('sources.source_detail', source_id=source.id))
     
-    return render_template('edit_source.html', source=source)
+    return render_template('source/edit_source.html', source=source)
 
 @sources_bp.route('/<int:source_id>/delete', methods=['POST'])
 @login_required

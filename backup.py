@@ -503,7 +503,7 @@ def borg_init(repo_path, encryption=None, passphrase=None):
 @login_required
 def list_repositories():
     repos = Repository.query.filter_by(user_id=current_user.id).all()
-    return render_template('repositories.html', repos=repos)
+    return render_template('backup/repositories.html', repos=repos)
 
 @backup_bp.route('/repositories/add', methods=['GET', 'POST'])
 @login_required
@@ -517,13 +517,13 @@ def add_repository():
         # Validate inputs
         if not name or not path:
             flash('Repository name and path are required.', 'danger')
-            return render_template('add_repository.html')
+            return render_template('backup/add_repository.html')
         
         # Check if repository already exists
         existing_repo = Repository.query.filter_by(name=name, user_id=current_user.id).first()
         if existing_repo:
             flash('A repository with this name already exists.', 'danger')
-            return render_template('add_repository.html')
+            return render_template('backup/add_repository.html')
         
         # Initialize repository if it doesn't exist
         init_required = request.form.get('init') == 'on'
@@ -531,7 +531,7 @@ def add_repository():
             init_result = borg_init(path, encryption, passphrase)
             if not init_result["success"]:
                 flash(f'Failed to initialize repository: {init_result["error"]}', 'danger')
-                return render_template('add_repository.html')
+                return render_template('backup/add_repository.html')
         
         # Create repository record
         new_repo = Repository(
@@ -547,7 +547,7 @@ def add_repository():
         flash('Repository added successfully.', 'success')
         return redirect(url_for('backup.list_repositories'))
     
-    return render_template('add_repository.html')
+    return render_template('backup/add_repository.html')
 
 @backup_bp.route('/repositories/<int:repo_id>')
 @login_required
@@ -561,7 +561,7 @@ def repository_detail(repo_id):
     
     # Get jobs but exclude 'list' jobs
     jobs = Job.query.filter_by(repository_id=repo_id).filter(Job.job_type != 'list').order_by(Job.timestamp.desc()).all()
-    return render_template('repository_detail.html', repo=repo, jobs=jobs)
+    return render_template('backup/repository_detail.html', repo=repo, jobs=jobs)
 
 @backup_bp.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -591,7 +591,7 @@ def create_backup():
                 flash('Invalid source selected.', 'danger')
                 repos = Repository.query.filter_by(user_id=current_user.id).all()
                 sources = Source.query.filter_by(user_id=current_user.id).all()
-                return render_template('create_backup.html', repos=repos, sources=sources)
+                return render_template('backup/create_backup.html', repos=repos, sources=sources)
             
             source_path = backup_source.get_formatted_path()
         elif custom_path:
@@ -601,7 +601,7 @@ def create_backup():
             flash('Either a source or a custom path is required.', 'danger')
             repos = Repository.query.filter_by(user_id=current_user.id).all()
             sources = Source.query.filter_by(user_id=current_user.id).all()
-            return render_template('create_backup.html', repos=repos, sources=sources)
+            return render_template('backup/create_backup.html', repos=repos, sources=sources)
         
         # Use timestamp if archive name not provided
         if not archive_name:
@@ -644,7 +644,7 @@ def create_backup():
     
     repos = Repository.query.filter_by(user_id=current_user.id).all()
     sources = Source.query.filter_by(user_id=current_user.id).all()
-    return render_template('create_backup.html', repos=repos, sources=sources)
+    return render_template('backup/create_backup.html', repos=repos, sources=sources)
 
 @backup_bp.route('/jobs')
 @login_required
@@ -653,7 +653,7 @@ def list_jobs():
     jobs = Job.query.filter_by(user_id=current_user.id).filter(Job.job_type != 'list') \
              .options(db.joinedload(Job.source), db.joinedload(Job.repository)) \
              .order_by(Job.timestamp.desc()).all()
-    return render_template('jobs.html', jobs=jobs)
+    return render_template('backup/jobs.html', jobs=jobs)
 
 @backup_bp.route('/jobs/<int:job_id>')
 @login_required
@@ -666,7 +666,7 @@ def job_detail(job_id):
         flash('You do not have permission to view this job.', 'danger')
         return redirect(url_for('backup.list_jobs'))
     
-    return render_template('job_detail.html', job=job)
+    return render_template('backup/job_detail.html', job=job)
 
 @backup_bp.route('/api/jobs/<int:job_id>/cancel', methods=['POST'])
 @login_required

@@ -55,7 +55,7 @@ def dashboard():
     sources = Source.query.filter_by(user_id=current_user.id).all()
     # Get active schedules
     schedules = Schedule.query.filter_by(user_id=current_user.id, is_active=True).all()
-    return render_template('dashboard.html', repos=repos, jobs=recent_jobs, sources=sources, schedules=schedules)
+    return render_template('common/dashboard.html', repos=repos, jobs=recent_jobs, sources=sources, schedules=schedules)
 
 @app.route('/api/jobs')
 @login_required
