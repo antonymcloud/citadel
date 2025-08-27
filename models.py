@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+import json
 
 db = SQLAlchemy()
 
@@ -58,12 +59,26 @@ class Job(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, default=None)
     log_output = db.Column(db.Text, default=None)
+    job_metadata = db.Column(db.Text, default=None)  # JSON serialized metadata
     
     # Add relationship to Source
     source = db.relationship('Source', backref='jobs', lazy=True)
     
     def __repr__(self):
         return f'<Job {self.id} {self.job_type} {self.status}>'
+    
+    def get_metadata(self):
+        """Get metadata as a Python dictionary"""
+        if self.job_metadata:
+            try:
+                return json.loads(self.job_metadata)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_metadata(self, metadata_dict):
+        """Set metadata from a Python dictionary"""
+        self.job_metadata = json.dumps(metadata_dict)
     
     def to_dict(self):
         return {
@@ -76,7 +91,8 @@ class Job(db.Model):
             'source_path': self.source_path,
             'timestamp': self.timestamp.isoformat(),
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'log_output': self.log_output
+            'log_output': self.log_output,
+            'metadata': self.get_metadata()
         }
         
     def cancel(self):

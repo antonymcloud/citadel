@@ -9,6 +9,253 @@ import json
 
 backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
 
+
+def extract_stats_from_output(output):
+    """Extract statistics from Borg command output"""
+    stats = {}
+    
+    print("DEBUG: Extracting stats from output")
+    print(f"DEBUG: Output length: {len(output) if output else 0}")
+    
+    # Look for the statistics section which is delimited by dashed lines
+    dash_line = "------------------------------------------------------------------------------"
+    if dash_line in output:
+        print("DEBUG: Found dash line in regular format")
+        sections = output.split(dash_line)
+        print(f"DEBUG: Found {len(sections)} sections separated by dash lines")
+    elif f"[WARN] {dash_line}" in output:
+        # Handle mock output with [WARN] prefix
+        print("DEBUG: Found dash line in mock format")
+        sections = output.split(f"[WARN] {dash_line}")
+        print(f"DEBUG: Found {len(sections)} sections separated by dash lines")
+    else:
+        print("DEBUG: No dash line found in output")
+        return stats
+        
+    if len(sections) >= 3:  # At least one section between two delimiters
+        stats_section = sections[1].strip()
+        print(f"DEBUG: Stats section length: {len(stats_section)}")
+        print(f"DEBUG: Stats section preview: {stats_section[:100]}...")
+        
+        # Parse the statistics section
+        lines = stats_section.split('\n')
+        for line in lines:
+            # Remove [WARN] prefix if present
+            if line.startswith("[WARN] "):
+                line = line[7:]
+            
+            line = line.strip()
+            
+            # Extract archive name and fingerprint
+            if line.startswith("Archive name: "):
+                stats["archive_name"] = line.replace("Archive name: ", "").strip()
+            elif line.startswith("Archive fingerprint: "):
+                stats["archive_fingerprint"] = line.replace("Archive fingerprint: ", "").strip()
+            
+            # Extract timestamps
+            elif line.startswith("Time (start): "):
+                stats["start_time"] = line.replace("Time (start): ", "").strip()
+            elif line.startswith("Time (end): "):
+                stats["end_time"] = line.replace("Time (end): ", "").strip()
+            
+            # Extract duration
+            elif line.startswith("Duration: "):
+                duration_str = line.replace("Duration: ", "").strip()
+                if "seconds" in duration_str:
+                    stats["duration"] = float(duration_str.replace(" seconds", "").strip())
+            
+            # Extract number of files
+            elif line.startswith("Number of files: "):
+                stats["nfiles"] = int(line.replace("Number of files: ", "").strip())
+            
+            # Extract size information
+            elif "Original size" in line and "Compressed size" in line and "Deduplicated size" in line:
+                # This is the header line for size information
+                continue
+            elif line.startswith("This archive:"):
+                # Parse sizes for this archive
+                parts = line.split()
+                if len(parts) >= 8:
+                    stats["original_size"] = parse_size(parts[2] + " " + parts[3])
+                    stats["compressed_size"] = parse_size(parts[4] + " " + parts[5])
+                    stats["deduplicated_size"] = parse_size(parts[6] + " " + parts[7])
+            elif line.startswith("All archives:"):
+                # Parse sizes for all archives
+                parts = line.split()
+                if len(parts) >= 8:
+                    stats["all_archives_original_size"] = parse_size(parts[2] + " " + parts[3])
+                    stats["all_archives_compressed_size"] = parse_size(parts[4] + " " + parts[5])
+                    stats["all_archives_deduplicated_size"] = parse_size(parts[6] + " " + parts[7])
+            
+            # Extract additional metrics
+            elif line.startswith("Unique chunks"):
+                parts = line.split()
+                if len(parts) >= 9:
+                    try:
+                        stats["unique_chunks"] = int(parts[2])
+                        stats["unique_chunks_size"] = parse_size(parts[4] + " " + parts[5])
+                        stats["unique_chunks_avg_size"] = parse_size(parts[7] + " " + parts[8])
+                    except (ValueError, IndexError):
+                        pass
+            
+            # For prune operations
+            elif line.startswith("Keeping archive: "):
+                if "kept_archives" not in stats:
+                    stats["kept_archives"] = []
+                stats["kept_archives"].append(line.replace("Keeping archive: ", "").strip())
+            elif line.startswith("Pruning archive: "):
+                if "pruned_archives" not in stats:
+                    stats["pruned_archives"] = []
+                stats["pruned_archives"].append(line.replace("Pruning archive: ", "").strip())
+    
+    # Add counts for prune operations
+    if "kept_archives" in stats:
+        stats["kept_archives_count"] = len(stats["kept_archives"])
+    if "pruned_archives" in stats:
+        stats["pruned_archives_count"] = len(stats["pruned_archives"])
+    
+    # Calculate compression and deduplication ratios
+    if "original_size" in stats and "compressed_size" in stats and stats["original_size"] > 0:
+        stats["compression_ratio"] = stats["compressed_size"] / stats["original_size"] * 100
+    if "original_size" in stats and "deduplicated_size" in stats and stats["original_size"] > 0:
+        stats["deduplication_ratio"] = stats["deduplicated_size"] / stats["original_size"] * 100
+    
+    print(f"DEBUG: Extracted stats: {stats}")
+    
+    return stats
+
+def parse_size(size_str):
+    """Parse size string (e.g., "1.00 GB") to bytes"""
+    try:
+        value, unit = size_str.split()
+        value = float(value)
+        
+        # Convert to bytes based on unit
+        if unit == "B":
+            return value
+        elif unit == "KB":
+            return value * 1024
+        elif unit == "MB":
+            return value * 1024 * 1024
+        elif unit == "GB":
+            return value * 1024 * 1024 * 1024
+        elif unit == "TB":
+            return value * 1024 * 1024 * 1024 * 1024
+        else:
+            return value  # Unable to parse unit, return as is
+    except:
+        return 0  # Return 0 if parsing fails
+
+def format_size(size_bytes):
+    """Format bytes to human-readable size"""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes/1024:.2f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes/(1024*1024):.2f} MB"
+    elif size_bytes < 1024 * 1024 * 1024 * 1024:
+        return f"{size_bytes/(1024*1024*1024):.2f} GB"
+    else:
+        return f"{size_bytes/(1024*1024*1024*1024):.2f} TB"
+
+def format_stats_for_display(stats):
+    """Format statistics for display in the job output"""
+    formatted = "\n\n"
+    formatted += "📊 BACKUP STATISTICS 📊\n"
+    formatted += "=" * 50 + "\n"
+    
+    if "archive_name" in stats:
+        formatted += f"Archive: {stats['archive_name']}\n"
+    
+    if "start_time" in stats and "end_time" in stats:
+        formatted += f"Time: {stats['start_time']} to {stats['end_time']}\n"
+    
+    if "duration" in stats:
+        formatted += f"Duration: {stats['duration']:.2f} seconds\n"
+    
+    if "nfiles" in stats:
+        formatted += f"Files: {stats['nfiles']}\n"
+    
+    formatted += "-" * 50 + "\n"
+    
+    if "original_size" in stats:
+        formatted += f"Original Size:      {format_size(stats['original_size'])}\n"
+    
+    if "compressed_size" in stats:
+        formatted += f"Compressed Size:    {format_size(stats['compressed_size'])}\n"
+        
+    if "deduplicated_size" in stats:
+        formatted += f"Deduplicated Size:  {format_size(stats['deduplicated_size'])}\n"
+    
+    # Calculate and display ratios
+    if "compression_ratio" in stats:
+        savings = 100 - stats['compression_ratio']
+        formatted += f"Compression Ratio:  {stats['compression_ratio']:.1f}% ({savings:.1f}% saved)\n"
+    elif "original_size" in stats and "compressed_size" in stats:
+        ratio = stats['compressed_size'] / stats['original_size'] * 100
+        savings = 100 - ratio
+        formatted += f"Compression Ratio:  {ratio:.1f}% ({savings:.1f}% saved)\n"
+    
+    if "deduplication_ratio" in stats:
+        savings = 100 - stats['deduplication_ratio']
+        formatted += f"Deduplication Ratio: {stats['deduplication_ratio']:.1f}% ({savings:.1f}% saved)\n"
+    elif "original_size" in stats and "deduplicated_size" in stats:
+        ratio = stats['deduplicated_size'] / stats['original_size'] * 100
+        savings = 100 - ratio
+        formatted += f"Deduplication Ratio: {ratio:.1f}% ({savings:.1f}% saved)\n"
+    
+    # Add unique chunks information if available
+    if "unique_chunks" in stats and "unique_chunks_size" in stats:
+        formatted += f"\nUnique Chunks: {stats['unique_chunks']} ({format_size(stats['unique_chunks_size'])})\n"
+        if "unique_chunks_avg_size" in stats:
+            formatted += f"Average Chunk Size: {format_size(stats['unique_chunks_avg_size'])}\n"
+    
+    # Add pruning information if available
+    if "kept_archives_count" in stats or "pruned_archives_count" in stats:
+        formatted += "\n" + "-" * 50 + "\n"
+        formatted += "PRUNING SUMMARY:\n"
+        
+        if "kept_archives_count" in stats:
+            formatted += f"Archives kept: {stats['kept_archives_count']}\n"
+        if "pruned_archives_count" in stats:
+            formatted += f"Archives pruned: {stats['pruned_archives_count']}\n"
+        
+    # Add repository total information if available
+    if "all_archives_original_size" in stats:
+        formatted += "\n" + "-" * 50 + "\n"
+        formatted += "REPOSITORY TOTALS:\n"
+        formatted += f"All Archives Size:         {format_size(stats['all_archives_original_size'])}\n"
+        formatted += f"All Archives Compressed:   {format_size(stats['all_archives_compressed_size'])}\n"
+        formatted += f"All Archives Deduplicated: {format_size(stats['all_archives_deduplicated_size'])}\n"
+        
+        # Calculate total space saved
+        if stats['all_archives_original_size'] and stats['all_archives_deduplicated_size']:
+            saved = stats['all_archives_original_size'] - stats['all_archives_deduplicated_size']
+            savings_percent = (saved / stats['all_archives_original_size']) * 100
+            formatted += f"Total Space Saved:        {format_size(saved)} ({savings_percent:.1f}%)\n"
+    
+    formatted += "=" * 50 + "\n"
+    return formatted
+    
+    formatted += "\n"
+    formatted += "Size Information:\n"
+    formatted += "-" * 50 + "\n"
+    
+    if "original_size" in stats and "compressed_size" in stats and "deduplicated_size" in stats:
+        formatted += f"Original size:     {format_size(stats['original_size'])}\n"
+        formatted += f"Compressed size:   {format_size(stats['compressed_size'])}\n"
+        formatted += f"Deduplicated size: {format_size(stats['deduplicated_size'])}\n"
+        
+        # Calculate compression and deduplication ratios
+        if stats['original_size'] > 0:
+            compression_ratio = stats['compressed_size'] / stats['original_size']
+            dedup_ratio = stats['deduplicated_size'] / stats['original_size']
+            formatted += f"Compression ratio: {compression_ratio:.2%}\n"
+            formatted += f"Deduplication ratio: {dedup_ratio:.2%}\n"
+    
+    return formatted
+
 def run_borg_command(job_id, args):
     """Run a Borg command in a separate thread and update job status"""
     # Import Flask app to get application context
@@ -63,17 +310,13 @@ def run_borg_command(job_id, args):
             # Run command with real-time output streaming
             print(f"Running command: {command_to_run} {' '.join(args)}")
             
-            # Initialize output buffer for structured JSON data
-            job.log_output = json.dumps({"structured_data": []})
+            # Initialize output buffer with empty string - we'll be storing plain text
+            job.log_output = ""
             db.session.commit()
             
-            # Add --json flag to use Borg's JSON output format (if not already in args)
-            if '--json' not in args:
-                # For mock_borg.py we need to ensure it's placed before the subcommand
-                if command_to_run.endswith('mock_borg.py') and len(args) > 0:
-                    args.insert(1, '--json')  # Insert after the subcommand (create, list, etc.)
-                else:
-                    args.insert(0, '--json')
+            # Check if the last argument is "--json" and remove it if found
+            if '--json' in args:
+                args.remove('--json')
             
             # Start the process with pipe for stdout and stderr
             process = subprocess.Popen(
@@ -96,66 +339,31 @@ def run_borg_command(job_id, args):
                             continue
                             
                         try:
-                            # Get the current structured data
-                            current_data = json.loads(current_job.log_output)
+                            # Format line with stream indicator
+                            formatted_line = line.rstrip()
+                            if is_stderr and formatted_line:
+                                prefix = "[ERROR] " if any(err in line.lower() for err in ['error', 'exception', 'fatal']) else "[WARN] "
+                                formatted_line = prefix + formatted_line
                             
-                            if is_stderr:
-                                # For stderr, add as a log_message entry
-                                error_obj = {
-                                    "type": "log_message",
-                                    "levelname": "ERROR" if any(err in line.lower() for err in ['error', 'exception', 'fatal']) else "WARNING",
-                                    "name": "borg.stderr",
-                                    "message": line.strip(),
-                                    "time": datetime.utcnow().timestamp()
-                                }
-                                current_data["structured_data"].append(error_obj)
+                            # Append to log_output
+                            if current_job.log_output:
+                                current_job.log_output += "\n" + formatted_line
                             else:
-                                # For stdout (JSON data), try to parse as Borg JSON
-                                line = line.strip()
-                                if line:  # Skip empty lines
-                                    try:
-                                        json_obj = json.loads(line)
-                                        # Store the original object without modifications
-                                        current_data["structured_data"].append(json_obj)
-                                    except json.JSONDecodeError:
-                                        # If not valid JSON, add as a regular info message
-                                        msg_obj = {
-                                            "type": "log_message",
-                                            "levelname": "INFO",
-                                            "name": "borg.stdout",
-                                            "message": line,
-                                            "time": datetime.utcnow().timestamp()
-                                        }
-                                        current_data["structured_data"].append(msg_obj)
+                                current_job.log_output = formatted_line
                             
-                            # Update the job log
-                            current_job.log_output = json.dumps(current_data)
                             db.session.commit()
                         except Exception as e:
                             print(f"Error processing output line: {e}")
                             try:
-                                # Try to recover and continue processing
-                                current_data = json.loads(current_job.log_output)
-                                current_data["structured_data"].append({
-                                    "type": "log_message",
-                                    "levelname": "ERROR",
-                                    "name": "tower.processing",
-                                    "message": f"Error processing output: {str(e)}",
-                                    "time": datetime.utcnow().timestamp()
-                                })
-                                current_job.log_output = json.dumps(current_data)
+                                # Add error message to log
+                                error_msg = f"[ERROR] Failed to process output: {str(e)}"
+                                if current_job.log_output:
+                                    current_job.log_output += "\n" + error_msg
+                                else:
+                                    current_job.log_output = error_msg
+                                db.session.commit()
                             except:
-                                # If all else fails, create a new structured data container
-                                current_job.log_output = json.dumps({
-                                    "structured_data": [{
-                                        "type": "log_message",
-                                        "levelname": "ERROR",
-                                        "name": "tower.processing",
-                                        "message": f"Failed to process output: {str(e)}",
-                                        "time": datetime.utcnow().timestamp()
-                                    }]
-                                })
-                            db.session.commit()
+                                pass  # Last resort, can't do much here
             
             # Create threads to read stdout and stderr concurrently
             stdout_thread = threading.Thread(target=read_stream, args=(process.stdout,))
@@ -182,6 +390,22 @@ def run_borg_command(job_id, args):
             
             if return_code == 0:
                 job.status = "success"
+                
+                # For create and prune commands, extract statistics
+                if args[0] in ["create", "prune"] and job.log_output:
+                    print(f"DEBUG: Extracting stats for {args[0]} command")
+                    stats = extract_stats_from_output(job.log_output)
+                    if stats:
+                        print(f"DEBUG: Found stats, storing in metadata")
+                        # Store statistics in job metadata
+                        metadata = job.get_metadata()
+                        print(f"DEBUG: Current metadata: {metadata}")
+                        metadata["stats"] = stats
+                        job.set_metadata(metadata)
+                        print(f"DEBUG: Updated job metadata: {job.job_metadata}")
+                        
+                        # Add formatted stats to the end of the log output
+                        job.log_output += "\n\n" + format_stats_for_display(stats)
             else:
                 job.status = "failed"
             

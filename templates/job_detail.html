@@ -103,6 +103,172 @@
                     </table>
                 </div>
             </div>
+            
+            {# Display job statistics if available #}
+            {% set metadata = job.get_metadata() %}
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Debug Information</h5>
+                </div>
+                <div class="card-body">
+                    <p>Has metadata: {{ metadata is not none }}</p>
+                    <p>Metadata keys: {{ metadata.keys()|list }}</p>
+                    <p>Has stats: {{ 'stats' in metadata }}</p>
+                    {% if 'stats' in metadata %}
+                        <p>Stats keys: {{ metadata.stats.keys()|list }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if metadata and metadata.stats %}
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Backup Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        {% if metadata.stats.nfiles is defined %}
+                        <tr>
+                            <th><i class="fas fa-file me-2"></i>Files:</th>
+                            <td class="font-weight-bold">{{ metadata.stats.nfiles }}</td>
+                        </tr>
+                        {% endif %}
+                        
+                        {% if metadata.stats.original_size is defined %}
+                        <tr>
+                            <th><i class="fas fa-database me-2"></i>Original Size:</th>
+                            <td class="font-weight-bold">{{ metadata.stats.original_size|filesizeformat }}</td>
+                        </tr>
+                        {% endif %}
+                        
+                        {% if metadata.stats.compressed_size is defined %}
+                        <tr>
+                            <th><i class="fas fa-compress me-2"></i>Compressed Size:</th>
+                            <td class="font-weight-bold">{{ metadata.stats.compressed_size|filesizeformat }}</td>
+                        </tr>
+                        {% endif %}
+                        
+                        {% if metadata.stats.deduplicated_size is defined %}
+                        <tr>
+                            <th><i class="fas fa-clone me-2"></i>Deduplicated Size:</th>
+                            <td class="font-weight-bold">{{ metadata.stats.deduplicated_size|filesizeformat }}</td>
+                        </tr>
+                        {% endif %}
+                        
+                        {% if metadata.stats.duration is defined %}
+                        <tr>
+                            <th><i class="fas fa-clock me-2"></i>Duration:</th>
+                            <td>{{ metadata.stats.duration }} seconds</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+
+                    {% if metadata.stats.unique_chunks is defined %}
+                    <hr>
+                    <h6 class="mb-3"><i class="fas fa-cubes me-2"></i>Chunk Information</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <th>Unique Chunks:</th>
+                            <td>{{ metadata.stats.unique_chunks }}</td>
+                        </tr>
+                        {% if metadata.stats.unique_chunks_size is defined %}
+                        <tr>
+                            <th>Chunks Size:</th>
+                            <td>{{ metadata.stats.unique_chunks_size|filesizeformat }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if metadata.stats.unique_chunks_avg_size is defined %}
+                        <tr>
+                            <th>Average Chunk Size:</th>
+                            <td>{{ metadata.stats.unique_chunks_avg_size|filesizeformat }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    {% endif %}
+                    
+                    {% if metadata.stats.pruned_archives_count is defined or metadata.stats.kept_archives_count is defined %}
+                    <hr>
+                    <h6 class="mb-3"><i class="fas fa-broom me-2"></i>Pruning Information</h6>
+                    <table class="table table-sm">
+                        {% if metadata.stats.kept_archives_count is defined %}
+                        <tr>
+                            <th>Archives Kept:</th>
+                            <td>{{ metadata.stats.kept_archives_count }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if metadata.stats.pruned_archives_count is defined %}
+                        <tr>
+                            <th>Archives Pruned:</th>
+                            <td>{{ metadata.stats.pruned_archives_count }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    {% endif %}                        {% if metadata.stats.compressed_size is defined and metadata.stats.original_size is defined %}
+                        <tr>
+                            <th><i class="fas fa-percentage me-2"></i>Compression Ratio:</th>
+                            <td>
+                                {% set ratio = (metadata.stats.compressed_size / metadata.stats.original_size * 100)|round(1) %}
+                                {% set savings = (100 - ratio)|round(1) %}
+                                <div>
+                                    <strong>{{ ratio }}%</strong> of original size (saved {{ savings }}%)
+                                    <div class="mt-1" style="height: 8px; background-color: #e9ecef; border-radius: 4px;">
+                                        <div style="height: 100%; width: {{ ratio }}%; background-color: #28a745; border-radius: 4px;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        
+                        {% if metadata.stats.deduplicated_size is defined and metadata.stats.original_size is defined %}
+                        <tr>
+                            <th><i class="fas fa-percentage me-2"></i>Deduplication Ratio:</th>
+                            <td>
+                                {% set ratio = (metadata.stats.deduplicated_size / metadata.stats.original_size * 100)|round(1) %}
+                                {% set savings = (100 - ratio)|round(1) %}
+                                <div>
+                                    <strong>{{ ratio }}%</strong> of original size (saved {{ savings }}%)
+                                    <div class="mt-1" style="height: 8px; background-color: #e9ecef; border-radius: 4px;">
+                                        <div style="height: 100%; width: {{ ratio }}%; background-color: #17a2b8; border-radius: 4px;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+
+                    {% if metadata.stats.all_archives_original_size is defined %}
+                    <hr>
+                    <div class="card mt-3 bg-light">
+                        <div class="card-header bg-secondary text-white">
+                            <h6 class="mb-0"><i class="fas fa-archive me-2"></i>Repository Totals</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm mb-0">
+                                <tr>
+                                    <th>All Archives Size:</th>
+                                    <td>{{ metadata.stats.all_archives_original_size|filesizeformat }}</td>
+                                </tr>
+                                <tr>
+                                    <th>All Archives Compressed:</th>
+                                    <td>{{ metadata.stats.all_archives_compressed_size|filesizeformat }}</td>
+                                </tr>
+                                <tr>
+                                    <th>All Archives Deduplicated:</th>
+                                    <td>{{ metadata.stats.all_archives_deduplicated_size|filesizeformat }}</td>
+                                </tr>
+                                {% if metadata.stats.all_archives_original_size and metadata.stats.all_archives_deduplicated_size %}
+                                <tr>
+                                    <th>Total Space Saved:</th>
+                                    <td>{{ (metadata.stats.all_archives_original_size - metadata.stats.all_archives_deduplicated_size)|filesizeformat }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
         
         <div class="col-md-8">
@@ -130,16 +296,15 @@
                     {% endif %}
                     
                     <div id="jobOutput" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto;">
-                        <div id="structuredOutput">
-                            <!-- Structured output will be rendered here -->
-                        </div>
-                        <pre id="rawOutput" style="display: none; white-space: pre-wrap;">{{ job.log_output }}</pre>
+                        <pre id="plainTextOutput" style="white-space: pre-wrap; margin-bottom: 0;">{{ job.log_output }}</pre>
                     </div>
                     
                     <div class="mt-3 d-flex justify-content-between">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="toggleRawOutput">
-                            <label class="form-check-label" for="toggleRawOutput">Show Raw Output</label>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary" id="btnAutoScroll">
+                                <i class="fas fa-arrow-down me-1"></i>Auto-scroll
+                            </button>
+                            <span class="text-muted ms-2" id="autoScrollStatus">Enabled</span>
                         </div>
                         <button class="btn btn-sm btn-primary" onclick="copyToClipboard()">
                             <i class="fas fa-copy me-1"></i>Copy
@@ -153,187 +318,74 @@
                             output.scrollTop = output.scrollHeight;
                         }
                         
-                        // Format a JSON string for display
-                        function formatJsonOutput(jsonStr) {
-                            try {
-                                // Try to parse the JSON
-                                const data = JSON.parse(jsonStr);
-                                const structuredOutput = document.getElementById('structuredOutput');
-                                structuredOutput.innerHTML = '';
-                                
-                                // Process structured data array
-                                if (data.structured_data && Array.isArray(data.structured_data)) {
-                                    data.structured_data.forEach(item => {
-                                        const msgDiv = document.createElement('div');
-                                        msgDiv.className = 'mb-2';
-                                        
-                                        // Format based on the type of message following Borg's format
-                                        if (item.type === 'log_message') {
-                                            // Standard log messages
-                                            let badgeClass = 'bg-info';
-                                            let icon = 'info-circle';
-                                            
-                                            if (item.levelname === 'ERROR') {
-                                                badgeClass = 'bg-danger';
-                                                icon = 'exclamation-circle';
-                                            } else if (item.levelname === 'WARNING') {
-                                                badgeClass = 'bg-warning';
-                                                icon = 'exclamation-triangle';
-                                            }
-                                            
-                                            msgDiv.innerHTML = `
-                                                <div class="d-flex">
-                                                    <span class="badge ${badgeClass} me-2"><i class="fas fa-${icon}"></i></span>
-                                                    <div>${item.message}</div>
-                                                </div>
-                                            `;
-                                        } else if (item.type === 'progress_percent') {
-                                            // Progress updates
-                                            if (item.finished) {
-                                                msgDiv.innerHTML = `
-                                                    <div class="alert alert-success">
-                                                        <i class="fas fa-check-circle me-2"></i>Operation completed
-                                                    </div>
-                                                `;
-                                            } else {
-                                                const percent = item.current ? Math.round((item.current / item.total) * 100) : 0;
-                                                msgDiv.innerHTML = `
-                                                    <div>
-                                                        <small class="text-muted">${item.message || ''}</small>
-                                                        <div class="progress">
-                                                            <div class="progress-bar" role="progressbar" 
-                                                                style="width: ${percent}%" 
-                                                                aria-valuenow="${percent}" 
-                                                                aria-valuemin="0" 
-                                                                aria-valuemax="100">
-                                                                ${percent}%
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                `;
-                                            }
-                                        } else if (item.type === 'progress_message') {
-                                            // Simple progress messages
-                                            if (item.finished) {
-                                                msgDiv.innerHTML = `
-                                                    <div class="alert alert-success">
-                                                        <i class="fas fa-check-circle me-2"></i>${item.msgid || 'Operation'} completed
-                                                    </div>
-                                                `;
-                                            } else {
-                                                msgDiv.innerHTML = `
-                                                    <div class="d-flex align-items-center">
-                                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                                                        <div>${item.message || 'Processing...'}</div>
-                                                    </div>
-                                                `;
-                                            }
-                                        } else if (item.type === 'file_status') {
-                                            // File status updates (single character status)
-                                            let statusText = '';
-                                            let statusBadge = '';
-                                            
-                                            switch(item.status) {
-                                                case 'A':
-                                                    statusText = 'Added';
-                                                    statusBadge = 'bg-success';
-                                                    break;
-                                                case 'M':
-                                                    statusText = 'Modified';
-                                                    statusBadge = 'bg-warning';
-                                                    break;
-                                                case 'U':
-                                                    statusText = 'Unchanged';
-                                                    statusBadge = 'bg-info';
-                                                    break;
-                                                case 'd':
-                                                    statusText = 'Directory';
-                                                    statusBadge = 'bg-primary';
-                                                    break;
-                                                default:
-                                                    statusText = item.status;
-                                                    statusBadge = 'bg-secondary';
-                                            }
-                                            
-                                            msgDiv.innerHTML = `
-                                                <div class="d-flex">
-                                                    <span class="badge ${statusBadge} me-2">${statusText}</span>
-                                                    <div class="text-truncate">${item.path}</div>
-                                                </div>
-                                            `;
-                                        } else if (item.type === 'archive_progress') {
-                                            // Archive progress information
-                                            const originalSize = formatBytes(item.original_size);
-                                            const compressedSize = formatBytes(item.compressed_size);
-                                            const deduplicatedSize = formatBytes(item.deduplicated_size);
-                                            
-                                            msgDiv.innerHTML = `
-                                                <div class="card mb-2">
-                                                    <div class="card-header">
-                                                        <strong>Archive Progress</strong> - ${item.nfiles || 0} files processed
-                                                    </div>
-                                                    <div class="card-body">
-                                                        <div class="row">
-                                                            <div class="col-md-4">
-                                                                <strong>Original:</strong> ${originalSize}
-                                                            </div>
-                                                            <div class="col-md-4">
-                                                                <strong>Compressed:</strong> ${compressedSize}
-                                                            </div>
-                                                            <div class="col-md-4">
-                                                                <strong>Deduplicated:</strong> ${deduplicatedSize}
-                                                            </div>
-                                                        </div>
-                                                        <div class="mt-2">
-                                                            <strong>Path:</strong> ${item.path || 'N/A'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            `;
-                                        } else {
-                                            // Generic JSON
-                                            msgDiv.innerHTML = `
-                                                <div class="card mb-2">
-                                                    <div class="card-header">
-                                                        <strong>${item.type || 'JSON Data'}</strong>
-                                                    </div>
-                                                    <div class="card-body">
-                                                        <pre class="mb-0">${JSON.stringify(item, null, 2)}</pre>
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }
-                                        
-                                        structuredOutput.appendChild(msgDiv);
-                                    });
-                                } else {
-                                    // If not in our expected format, just show formatted JSON
-                                    structuredOutput.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-                                }
-                            } catch (e) {
-                                // If it's not valid JSON, just display as-is
-                                const structuredOutput = document.getElementById('structuredOutput');
-                                structuredOutput.innerHTML = `<pre>${jsonStr}</pre>`;
-                                console.error('Error parsing JSON:', e);
+                        // Initial scroll to bottom
+                        scrollOutputToBottom();
+                        
+                        // Auto-scroll state
+                        let autoScrollEnabled = true;
+                        
+                        // Toggle auto-scroll
+                        document.getElementById('btnAutoScroll').addEventListener('click', function() {
+                            autoScrollEnabled = !autoScrollEnabled;
+                            document.getElementById('autoScrollStatus').textContent = autoScrollEnabled ? 'Enabled' : 'Disabled';
+                            if (autoScrollEnabled) {
+                                scrollOutputToBottom();
                             }
+                        });
+                        
+                        // Copy to clipboard
+                        function copyToClipboard() {
+                            const output = document.getElementById('plainTextOutput');
+                            const textArea = document.createElement('textarea');
+                            textArea.value = output.textContent;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textArea);
                             
-                            // Scroll to bottom
-                            scrollOutputToBottom();
+                            // Show a temporary tooltip
+                            const btn = event.target.closest('button');
+                            const originalText = btn.innerHTML;
+                            btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                            setTimeout(() => {
+                                btn.innerHTML = originalText;
+                            }, 2000);
+                        }
+                        function scrollOutputToBottom() {
+                            const output = document.getElementById('jobOutput');
+                            output.scrollTop = output.scrollHeight;
                         }
                         
-                        // Format bytes to human-readable form
-                        function formatBytes(bytes, decimals = 2) {
-                            if (bytes === undefined || bytes === null) return 'N/A';
-                            if (bytes === 0) return '0 Bytes';
+                        // Update output with new content
+                        function updateOutput(content) {
+                            const outputElem = document.getElementById('plainTextOutput');
+                            outputElem.textContent = content;
                             
-                            const k = 1024;
-                            const dm = decimals < 0 ? 0 : decimals;
-                            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-                            
-                            const i = Math.floor(Math.log(bytes) / Math.log(k));
-                            
-                            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+                            // Auto-scroll if enabled
+                            if (autoScrollEnabled) {
+                                scrollOutputToBottom();
+                            }
                         }
+                        
+                        // Set error highlighting 
+                        function highlightConsoleOutput() {
+                            const output = document.getElementById('plainTextOutput');
+                            const content = output.textContent;
+                            
+                            // Only process if we have content
+                            if (content) {
+                                // Replace [ERROR] with styled version
+                                const highlightedContent = content
+                                    .replace(/\[ERROR\] (.*?)(?=\n|$)/g, '<span class="text-danger">[ERROR] $1</span>')
+                                    .replace(/\[WARN\] (.*?)(?=\n|$)/g, '<span class="text-warning">[WARN] $1</span>');
+                                
+                                // Set the HTML content
+                                output.innerHTML = highlightedContent;
+                            }
+                        }
+                        
+                        // Initial highlighting
+                        highlightConsoleOutput();
                         
                         // Initial rendering of output
                         const rawOutput = document.getElementById('rawOutput').textContent;
@@ -418,14 +470,13 @@
                         setTimeout(() => window.location.reload(), 1000);
                     }
                     
-                    // Append new output if any
+                    // Update output if any
                     if (data.log_output) {
-                        const outputElem = document.getElementById('rawOutput');
-                        // Completely replace the content rather than append, since we're working with JSON
-                        outputElem.textContent = data.log_output;
+                        // Update the output element with new content
+                        updateOutput(data.log_output);
                         
-                        // Format and display the JSON
-                        formatJsonOutput(data.log_output);
+                        // Apply syntax highlighting
+                        highlightConsoleOutput();
                         
                         outputLength = data.total_output_length;
                     }

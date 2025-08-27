@@ -25,9 +25,7 @@
         .nav-link {
             color: #495057;
         }
-        .nav-link:hover {
-            background-color: #e9ecef;
-        }
+        
         .nav-link.active {
             color: #0d6efd;
             font-weight: bold;
@@ -55,7 +53,7 @@
                 <ul class="navbar-nav ms-auto">
                     {% if current_user.is_authenticated %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle" style="color: lightgreen !important;" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user me-1"></i>{{ current_user.username }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
