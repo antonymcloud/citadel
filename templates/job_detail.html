@@ -120,25 +120,26 @@
                     <div class="alert alert-warning">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <i class="fas fa-spinner fa-spin me-2"></i>This job is still running. The output will be available when it completes.
+                                <i class="fas fa-spinner fa-spin me-2"></i>This job is running.
                             </div>
                             <button id="cancelJobBtn" class="btn btn-danger">
                                 <i class="fas fa-stop-circle me-2"></i>Cancel Job
                             </button>
                         </div>
                     </div>
-                    
-                    <script>
-                        // Auto-refresh the page every 5 seconds while the job is running
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 5000);
-                    </script>
                     {% endif %}
                     
-                    {% if job.log_output %}
                     <pre id="jobOutput" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap;">{{ job.log_output }}</pre>
                     <script>
+                        // Auto-scroll to bottom of output
+                        function scrollOutputToBottom() {
+                            const output = document.getElementById('jobOutput');
+                            output.scrollTop = output.scrollHeight;
+                        }
+                        
+                        // Initial scroll to bottom
+                        scrollOutputToBottom();
+                        
                         function copyToClipboard() {
                             const output = document.getElementById('jobOutput');
                             const textArea = document.createElement('textarea');
@@ -157,9 +158,7 @@
                             }, 2000);
                         }
                     </script>
-                    {% else %}
                     <div class="alert alert-info">No output available for this job.</div>
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -169,29 +168,80 @@
 
 {% block scripts %}
 <script>
-    $(document).ready(function() {
-        // Handle cancel job button click
-        $('#cancelJobBtn').click(function() {
-            if (confirm('Are you sure you want to cancel this job? This cannot be undone.')) {
-                $.ajax({
-                    url: "{{ url_for('backup.cancel_job', job_id=job.id) }}",
-                    type: 'POST',
-                    success: function(response) {
-                        // Show success message and reload the page
-                        alert('Job cancelled successfully');
-                        window.location.reload();
-                    },
-                    error: function(xhr) {
-                        // Show error message
-                        var errorMessage = 'Failed to cancel job';
-                        if (xhr.responseJSON && xhr.responseJSON.error) {
-                            errorMessage = xhr.responseJSON.error;
-                        }
-                        alert('Error: ' + errorMessage);
+    document.addEventListener('DOMContentLoaded', function() {
+        const jobId = "{{ job.id }}";
+        const isRunning = "{{ job.status }}" === "running";
+        let outputLength = "{{ job.log_output|length if job.log_output else 0 }}";
+        outputLength = parseInt(outputLength, 10);
+        let pollingInterval;
+        
+        // Setup polling for running jobs
+        if (isRunning) {
+            startPolling();
+        }
+        
+        // Handle job cancellation
+        const cancelButton = document.getElementById('cancelJobBtn');
+        if (cancelButton) {
+            cancelButton.addEventListener('click', function() {
+                if (confirm('Are you sure you want to cancel this job?')) {
+                    cancelJob();
+                }
+            });
+        }
+        
+        // Start polling for updates
+        function startPolling() {
+            // Poll every second for new output
+            pollingInterval = setInterval(fetchJobUpdates, 1000);
+        }
+        
+        // Fetch job updates with incremental output
+        function fetchJobUpdates() {
+            fetch(`/backup/api/jobs/${jobId}?offset=${outputLength}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Update job status if changed
+                    if (data.status !== 'running') {
+                        clearInterval(pollingInterval);
+                        // Refresh the page to get the final state
+                        setTimeout(() => window.location.reload(), 1000);
                     }
+                    
+                    // Append new output if any
+                    if (data.log_output) {
+                        const outputElem = document.getElementById('jobOutput');
+                        outputElem.textContent += data.log_output;
+                        scrollOutputToBottom();
+                        outputLength = data.total_output_length;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching job updates:', error);
                 });
-            }
-        });
+        }
+        
+        // Cancel the job
+        function cancelJob() {
+            fetch(`/backup/api/jobs/${jobId}/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Job cancellation requested. The job will stop shortly.');
+                } else {
+                    alert('Failed to cancel job: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error cancelling job:', error);
+                alert('Error cancelling job: ' + error);
+            });
+        }
     });
 </script>
 {% endblock %}

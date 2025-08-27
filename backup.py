@@ -58,34 +58,63 @@ def run_borg_command(job_id, args):
                 command_to_run = borg_path
                 print(f"Using real borg command at {borg_path}")
             
-            # Run command
+            # Run command with real-time output streaming
             print(f"Running command: {command_to_run} {' '.join(args)}")
-            result = subprocess.run(
+            
+            # Initialize output buffer
+            job.log_output = ""
+            db.session.commit()
+            
+            # Start the process with pipe for stdout and stderr
+            process = subprocess.Popen(
                 [command_to_run] + args,
                 env=env,
-                capture_output=True,
-                text=True
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1  # Line buffered
             )
-            print(f"Command result: {result.returncode}")
-            print(f"STDOUT: {result.stdout}")
-            print(f"STDERR: {result.stderr}")
             
-            # Combine output for better display
-            combined_output = ""
-            if result.stdout and result.stdout.strip():
-                combined_output += result.stdout
+            # Helper function to read from stream and update job
+            def read_stream(stream, is_stderr=False):
+                for line in iter(stream.readline, ''):
+                    # Update job log in database
+                    with app.app_context():
+                        # Fetch job again to avoid stale data
+                        current_job = Job.query.get(job_id)
+                        if current_job:
+                            # Only mark actual errors as errors (not all stderr output)
+                            # Borg sends progress info to stderr, so we only prefix when it looks like an error
+                            prefix = ""
+                            if is_stderr and ('error' in line.lower() or 'exception' in line.lower() or 'warning:' in line.lower()):
+                                prefix = "[ERROR] "
+                            current_job.log_output += f"{prefix}{line}"
+                            db.session.commit()
             
-            if result.stderr and result.stderr.strip():
-                # Only add a separator if we have both stdout and stderr
-                if combined_output:
-                    combined_output += "\n\n"
-                combined_output += result.stderr
+            # Create threads to read stdout and stderr concurrently
+            stdout_thread = threading.Thread(target=read_stream, args=(process.stdout,))
+            stderr_thread = threading.Thread(target=read_stream, args=(process.stderr, True))
             
-            # Update job with results
-            job.log_output = combined_output
+            # Set as daemon threads so they don't block program exit
+            stdout_thread.daemon = True
+            stderr_thread.daemon = True
+            
+            # Start threads
+            stdout_thread.start()
+            stderr_thread.start()
+            
+            # Wait for process to complete
+            return_code = process.wait()
+            
+            # Wait for output threads to finish
+            stdout_thread.join()
+            stderr_thread.join()
+            
+            # Update job with final status
+            job = Job.query.get(job_id)  # Refresh job object
             job.completed_at = datetime.utcnow()
             
-            if result.returncode == 0:
+            if return_code == 0:
                 job.status = "success"
             else:
                 job.status = "failed"
@@ -135,28 +164,33 @@ def borg_init(repo_path, encryption=None, passphrase=None):
         # Normal mode, use real borg
         command_to_run = borg_path
     
-    result = subprocess.run(
+    # Start process with pipe for stdout and stderr
+    process = subprocess.Popen(
         [command_to_run] + args,
         env=env,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True
     )
     
+    # Capture output from the process
+    stdout, stderr = process.communicate()
+    
     # Combine output for better display
     combined_output = ""
-    if result.stdout and result.stdout.strip():
-        combined_output += result.stdout
+    if stdout and stdout.strip():
+        combined_output += stdout
     
-    if result.stderr and result.stderr.strip():
+    if stderr and stderr.strip():
         # Only add a separator if we have both stdout and stderr
         if combined_output:
             combined_output += "\n\n"
-        combined_output += result.stderr
+        combined_output += stderr
     
     return {
-        "success": result.returncode == 0,
+        "success": process.returncode == 0,
         "output": combined_output,
-        "error": result.stderr if result.returncode != 0 else ""
+        "error": stderr if process.returncode != 0 else ""
     }
 
 @backup_bp.route('/repositories')
@@ -354,10 +388,19 @@ def get_job_status(job_id):
     if job.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Access denied"}), 403
     
+    # Get offset parameter (used for incremental output fetching)
+    offset = request.args.get('offset', type=int, default=0)
+    
+    # Get job output from the specified offset
+    log_output = job.log_output
+    if offset > 0 and log_output and len(log_output) > offset:
+        log_output = log_output[offset:]
+    
     return jsonify({
         "id": job.id,
         "status": job.status,
-        "log_output": job.log_output,
+        "log_output": log_output,
+        "total_output_length": len(job.log_output or ""),
         "completed_at": job.completed_at.isoformat() if job.completed_at else None
     })
 
