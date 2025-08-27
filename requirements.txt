@@ -14,3 +14,6 @@ flask_sqlalchemy        # Flask integration for SQLAlchemy
 
 # Scheduling
 apscheduler==3.10.4     # Advanced Python Scheduler for recurring jobs
+
+# Charting
+Flask-Charts==0.7.0     # Server-side chart generation with Chart.js integration

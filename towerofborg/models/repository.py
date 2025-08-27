@@ -11,6 +11,7 @@ class Repository(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     jobs = db.relationship('Job', backref='repository', lazy=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    max_size = db.Column(db.Float, default=1024)  # Maximum size in GB (default 1TB)
     
     def __repr__(self):
         return f'<Repository {self.name}>'
@@ -21,5 +22,6 @@ class Repository(db.Model):
             'name': self.name,
             'path': self.path,
             'encryption': self.encryption,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'max_size': self.max_size
         }

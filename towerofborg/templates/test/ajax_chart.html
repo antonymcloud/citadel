@@ -1,0 +1,107 @@
+{% extends "common/base.html" %}
+
+{% block title %}AJAX Chart Test - Tower of Borg{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .chart-container {
+        margin-bottom: 1rem;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    .chart-wrapper {
+        width: 100%;
+        height: 300px;
+        position: relative;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">AJAX Chart Test</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        This page tests loading a chart via AJAX, similar to how the repository charts are loaded.
+                    </p>
+                    
+                    <div class="chart-wrapper" id="test-chart-container">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                            <p>Loading test chart...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info text-center d-none" id="test-chart-no-data">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span>No data available for test chart.</span>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button id="reload-chart" class="btn btn-primary">
+                            <i class="fas fa-sync-alt me-2"></i>Reload Chart
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<!-- Chart.js is required for the test chart -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Load test chart
+        loadTestChart();
+        
+        // Reload button click handler
+        $('#reload-chart').click(function() {
+            loadTestChart();
+        });
+        
+        function loadTestChart() {
+            console.log("Loading test chart...");
+            $('#test-chart-container').html('<div class="text-center"><i class="fas fa-spinner fa-spin fa-2x mb-3"></i><p>Loading test chart...</p></div>');
+            
+            $.ajax({
+                url: "{{ url_for('test.get_test_chart') }}",
+                type: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    console.log("Test chart response:", response);
+                    if (response.chart_html) {
+                        console.log("Inserting chart HTML into #test-chart-container");
+                        // Insert chart HTML
+                        $('#test-chart-container').html(response.chart_html);
+                        $('#test-chart-no-data').addClass('d-none');
+                        
+                        console.log("Test chart loaded successfully");
+                    } else if (response.error) {
+                        console.error("Error loading test chart:", response.error);
+                        $('#test-chart-container').html('');
+                        $('#test-chart-no-data').removeClass('d-none');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Failed to load test chart:', error);
+                    console.error('Response:', xhr.responseText);
+                    $('#test-chart-container').html('');
+                    $('#test-chart-no-data').removeClass('d-none')
+                        .html('<i class="fas fa-exclamation-circle me-2"></i>Error loading chart: ' + error);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

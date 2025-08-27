@@ -359,3 +359,28 @@ def api_cancel_job(job_id):
             'status': 'error',
             'error': str(e)
         }), 500
+
+@backup_bp.route('/repository/<int:repo_id>/update', methods=['POST'])
+@login_required
+def update_repository(repo_id):
+    """Update repository settings"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Permission denied'}), 403
+    
+    # Update max_size if provided
+    if 'max_size' in request.form:
+        try:
+            max_size = float(request.form.get('max_size'))
+            if max_size < 1:
+                return jsonify({'success': False, 'error': 'Max size must be at least 1 GB'}), 400
+                
+            repository.max_size = max_size
+            db.session.commit()
+            return jsonify({'success': True})
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid value for max_size'}), 400
+    
+    return jsonify({'success': False, 'error': 'No valid parameters provided'}), 400

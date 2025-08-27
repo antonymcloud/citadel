@@ -41,13 +41,19 @@ def create_app(config=None):
     from towerofborg.backup import init_backup, backup_bp
     from towerofborg.sources import init_sources, sources_bp
     from towerofborg.schedules import init_schedules, schedules_bp
+    from towerofborg.analytics import init_analytics, analytics_bp
     from towerofborg.utils import init_scheduler, shutdown_scheduler
+    from towerofborg.test_routes import test_bp
     
     # Initialize modules
     init_auth(app)
     init_backup(app)
     init_sources(app)
     init_schedules(app)
+    init_analytics(app)
+    
+    # Register test blueprint (not initialized through a module function)
+    app.register_blueprint(test_bp)
     
     # Initialize scheduler
     scheduler = init_scheduler(app)
