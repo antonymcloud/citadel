@@ -1,0 +1,89 @@
+{% extends "common/base.html" %}
+
+{% block title %}Add Repository - Citadel{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-plus-circle me-2"></i>Add Repository</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Repository Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('backup.add_repository') }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Repository Name</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                            <div class="form-text">A friendly name to identify this repository</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="path" class="form-label">Repository Path</label>
+                            <input type="text" class="form-control" id="path" name="path" required>
+                            <div class="form-text">Local path or remote URL (ssh://user@host:port/path)</div>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="init" name="init">
+                            <label class="form-check-label" for="init">Initialize new repository</label>
+                            <div class="form-text">Check this if the repository doesn't exist yet</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="encryption" class="form-label">Encryption</label>
+                            <select class="form-select" id="encryption" name="encryption">
+                                <option value="">None</option>
+                                <option value="repokey">repokey</option>
+                                <option value="repokey-blake2">repokey-blake2 (recommended)</option>
+                                <option value="keyfile">keyfile</option>
+                                <option value="keyfile-blake2">keyfile-blake2</option>
+                            </select>
+                            <div class="form-text">Only used when initializing a new repository</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="passphrase" class="form-label">Passphrase</label>
+                            <input type="password" class="form-control" id="passphrase" name="passphrase">
+                            <div class="form-text">Required for encrypted repositories</div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Add Repository</button>
+                            <a href="{{ url_for('backup.list_repositories') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Help</h5>
+                </div>
+                <div class="card-body">
+                    <h5>Repository Path</h5>
+                    <p>This can be either:</p>
+                    <ul>
+                        <li>A local path: <code>/path/to/repo</code></li>
+                        <li>A remote SSH path: <code>user@host:/path/to/repo</code></li>
+                        <li>Full SSH URL: <code>ssh://user@host:port/path/to/repo</code></li>
+                    </ul>
+                    
+                    <h5>Encryption</h5>
+                    <p>When initializing a new repository, choose an encryption mode:</p>
+                    <ul>
+                        <li><strong>None:</strong> No encryption (not recommended)</li>
+                        <li><strong>repokey:</strong> Encryption key stored in the repository</li>
+                        <li><strong>repokey-blake2:</strong> Like repokey but with stronger hashing</li>
+                        <li><strong>keyfile:</strong> Encryption key stored separately from repository</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

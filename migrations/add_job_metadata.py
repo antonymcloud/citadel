@@ -7,7 +7,7 @@ import os
 import json
 
 # Get database path
-db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'instance/towerofborg.db')
+db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'instance/citadel.db')
 
 def migrate():
     # Check if database exists

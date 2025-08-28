@@ -5,7 +5,7 @@ import os
 print("Starting database migration for sources...")
 
 # Connect to the database
-db_path = 'instance/towerofborg.db'
+db_path = 'instance/citadel.db'
 if not os.path.exists(db_path):
     print(f"Database file {db_path} not found!")
     exit(1)

@@ -1,0 +1,487 @@
+{% extends "common/base.html" %}
+
+{% block title %}Schedule Details - Citadel{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-calendar-alt me-2"></i>{{ schedule.name }}</h1>
+        <div>
+            <form method="POST" action="{{ url_for('schedules.run_schedule_now', schedule_id=schedule.id) }}"
+                class="d-inline">
+                <button type="submit" class="btn btn-success me-2">
+                    <i class="fas fa-play me-1"></i>Run Now
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('schedules.toggle_schedule', schedule_id=schedule.id) }}"
+                class="d-inline">
+                {% if schedule.is_active %}
+                <button type="submit" class="btn btn-warning me-2">
+                    <i class="fas fa-pause me-1"></i>Pause
+                </button>
+                {% else %}
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="fas fa-play me-1"></i>Activate
+                </button>
+                {% endif %}
+            </form>
+            <a href="{{ url_for('schedules.edit_schedule', schedule_id=schedule.id) }}" class="btn btn-primary me-2">
+                <i class="fas fa-edit me-1"></i>Edit
+            </a>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                <i class="fas fa-trash-alt me-1"></i>Delete
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <!-- Schedule Details -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Schedule Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Status</h6>
+                            {% if schedule.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-warning">Inactive</span>
+                            {% endif %}
+
+                            <h6 class="fw-bold mt-3">Schedule Type</h6>
+                            <p>
+                                {% if schedule.frequency == 'daily' %}
+                                Daily at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
+                                {% elif schedule.frequency == 'weekly' %}
+                                Weekly on
+                                {% if schedule.day_of_week == 'mon' %}Monday{% endif %}
+                                {% if schedule.day_of_week == 'tue' %}Tuesday{% endif %}
+                                {% if schedule.day_of_week == 'wed' %}Wednesday{% endif %}
+                                {% if schedule.day_of_week == 'thu' %}Thursday{% endif %}
+                                {% if schedule.day_of_week == 'fri' %}Friday{% endif %}
+                                {% if schedule.day_of_week == 'sat' %}Saturday{% endif %}
+                                {% if schedule.day_of_week == 'sun' %}Sunday{% endif %}
+                                at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
+                                {% elif schedule.frequency == 'monthly' %}
+                                Monthly on day {{ schedule.day_of_month }} at {{ schedule.hour }}:{{ '%02d' %
+                                schedule.minute }}
+                                {% endif %}
+                            </p>
+
+                            <h6 class="fw-bold mt-3">Source</h6>
+                            <p>
+                                {{ schedule.source.name }}
+                                {% if schedule.source.source_type == 'local' %}
+                                (Local)
+                                {% else %}
+                                (SSH)
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Last Run</h6>
+                            <p>
+                                {% if schedule.last_run %}
+                                {{ schedule.last_run.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {% else %}
+                                Never
+                                {% endif %}
+                            </p>
+
+                            <h6 class="fw-bold mt-3">Next Run</h6>
+                            <p>
+                                {% if schedule.next_run and schedule.is_active %}
+                                {{ schedule.next_run.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {% else %}
+                                Not scheduled
+                                {% endif %}
+                            </p>
+
+                            <h6 class="fw-bold mt-3">Repository</h6>
+                            <p>{{ schedule.repository.name }}</p>
+
+                            <h6 class="fw-bold mt-3">Archive Prefix</h6>
+                            <p>{{ schedule.archive_prefix or "Default" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retention Settings -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Retention Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Auto-Prune</h6>
+                            <p>
+                                {% if schedule.auto_prune %}
+                                <i class="fas fa-check-circle text-success"></i> Enabled
+                                {% else %}
+                                <i class="fas fa-times-circle text-danger"></i> Disabled
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            {% if schedule.auto_prune %}
+                            <h6 class="fw-bold">Keep Settings</h6>
+                            <ul class="list-unstyled">
+                                <li>Daily: {{ schedule.keep_daily }}</li>
+                                <li>Weekly: {{ schedule.keep_weekly }}</li>
+                                <li>Monthly: {{ schedule.keep_monthly }}</li>
+                            </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <!-- Recent Jobs -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Jobs</h5>
+                </div>
+                <div class="card-body">
+                    {% if jobs %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in jobs %}
+                                <tr>
+                                    <td>{{ job.id }}</td>
+                                    <td>
+                                        {% if job.job_type == 'create' %}
+                                        <span class="badge bg-primary">Backup</span>
+                                        {% elif job.job_type == 'prune' %}
+                                        <span class="badge bg-info">Prune</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ job.job_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.status == 'success' %}
+                                        <span class="badge bg-success">Success</span>
+                                        {% elif job.status == 'running' %}
+                                        <span class="badge bg-warning">Running</span>
+                                        {% elif job.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ job.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('backup.job_detail', job_id=job.id) }}"
+                                            class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>No jobs have been run for this schedule yet.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Analytics Dashboard Row -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Schedule Performance Analytics</h5>
+                <button id="refreshAnalytics" class="btn btn-sm btn-light">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="analytics-loading" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
+                    <p>Loading schedule analytics...</p>
+                </div>
+
+                <div id="analytics-content" class="d-none">
+                    <div class="row">
+                        <!-- Success Rate Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Success Rate</h6>
+                                    <div class="progress mb-2" style="height: 20px;">
+                                        <div id="success-rate-bar" class="progress-bar bg-success" role="progressbar"
+                                            style="width: 0%"></div>
+                                    </div>
+                                    <p class="text-center mb-0" id="success-rate-text">0%</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Average Duration Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Average Duration</h6>
+                                    <div class="d-flex align-items-center justify-content-center h-100">
+                                        <div class="text-center">
+                                            <h3 id="avg-duration">-</h3>
+                                            <p class="mb-0">seconds</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Average Size Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Average Size</h6>
+                                    <div class="d-flex align-items-center justify-content-center h-100">
+                                        <div class="text-center">
+                                            <h3 id="avg-size">-</h3>
+                                            <p class="mb-0">GB per backup</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Job Count Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Job Statistics</h6>
+                                    <div class="d-flex align-items-center justify-content-center h-100">
+                                        <div class="text-center w-100">
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <div class="border rounded p-2 bg-success text-white">
+                                                        <strong id="successful-jobs" class="d-block">0</strong>
+                                                        <small class="d-block">Success</small>
+                                                    </div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="border rounded p-2 bg-danger text-white">
+                                                        <strong id="failed-jobs" class="d-block">0</strong>
+                                                        <small class="d-block">Failed</small>
+                                                    </div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="border rounded p-2 bg-secondary text-white">
+                                                        <strong id="total-jobs" class="d-block">0</strong>
+                                                        <small class="d-block">Total</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <!-- Performance Chart -->
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Backup Performance Over Time</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <iframe
+                                            src="{{ url_for('analytics.schedule_performance_chart', schedule_id=schedule.id) }}"
+                                            width="100%" height="300" frameborder="0"
+                                            style="border:0; overflow:hidden;">
+                                        </iframe>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Performance Insights -->
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Performance Insights</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="insights-content">
+                                        <div class="alert alert-info">
+                                            <h6 class="alert-heading">Backup Efficiency</h6>
+                                            <p id="efficiency-insight">Loading insights...</p>
+                                        </div>
+
+                                        <div class="alert alert-warning">
+                                            <h6 class="alert-heading">Potential Issues</h6>
+                                            <p id="issues-insight">Loading insights...</p>
+                                        </div>
+
+                                        <div class="alert alert-success">
+                                            <h6 class="alert-heading">Recommendations</h6>
+                                            <p id="recommendations-insight">Loading insights...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this schedule? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('schedules.delete_schedule', schedule_id=schedule.id) }}">
+                    <button type="submit" class="btn btn-danger">Delete Schedule</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    $(document).ready(function () {
+        // Load analytics data when page loads
+        loadAnalytics();
+
+        // Refresh analytics on button click
+        $('#refreshAnalytics').click(function () {
+            loadAnalytics();
+        });
+
+        function loadAnalytics() {
+            $('#analytics-loading').removeClass('d-none');
+            $('#analytics-content').addClass('d-none');
+
+            // Load schedule performance data
+            $.ajax({
+                url: "{{ url_for('analytics.schedule_performance_api', schedule_id=schedule.id) }}",
+                type: 'GET',
+                dataType: 'json',
+                success: function (data) {
+                    console.log("Performance data loaded:", data);
+
+                    // Convert any "None" string values to null
+                    Object.keys(data).forEach(key => {
+                        if (data[key] === "None") {
+                            data[key] = null;
+                        }
+                    });
+
+                    updateAnalyticsDisplay(data);
+                },
+                error: function (xhr, status, error) {
+                    console.error('Failed to load analytics data:', error);
+                    console.error('Response:', xhr.responseText);
+                    showError('Failed to load analytics data: ' + error);
+
+                    // Show the analytics content with error message
+                    $('#analytics-loading').addClass('d-none');
+                    $('#analytics-content').removeClass('d-none');
+                }
+            });
+        }
+
+        function updateAnalyticsDisplay(data) {
+            // Update success rate
+            if (data.success_rate !== undefined) {
+                const successRate = data.success_rate;
+                $('#success-rate-bar').css('width', successRate + '%');
+                $('#success-rate-text').text(successRate.toFixed(1) + '%');
+
+                // Color coding for success rate
+                if (successRate < 70) {
+                    $('#success-rate-bar').removeClass('bg-success bg-warning').addClass('bg-danger');
+                } else if (successRate < 90) {
+                    $('#success-rate-bar').removeClass('bg-success bg-danger').addClass('bg-warning');
+                } else {
+                    $('#success-rate-bar').removeClass('bg-warning bg-danger').addClass('bg-success');
+                }
+            }
+
+            // Update average duration
+            if (data.avg_duration_seconds !== undefined) {
+                $('#avg-duration').text(Math.round(data.avg_duration_seconds));
+            } else if (data.avg_duration_minutes !== undefined) {
+                // Fallback to minutes if seconds not available, but convert to seconds
+                $('#avg-duration').text(Math.round(data.avg_duration_minutes * 60));
+            }
+
+            // Update average size
+            if (data.avg_size_gb !== undefined) {
+                $('#avg-size').text(data.avg_size_gb.toFixed(2));
+            }
+
+            // Update job counts
+            $('#total-jobs').text(data.total_jobs || 0);
+            $('#successful-jobs').text(data.successful_jobs || 0);
+            $('#failed-jobs').text(data.failed_jobs || 0);
+
+            // Update insights
+            if (data.insights) {
+                $('#efficiency-insight').text(data.insights.efficiency || 'No data available');
+                $('#issues-insight').text(data.insights.issues || 'No issues detected');
+                $('#recommendations-insight').text(data.insights.recommendations || 'No recommendations available');
+            }
+
+            // Show the analytics content
+            $('#analytics-loading').addClass('d-none');
+            $('#analytics-content').removeClass('d-none');
+        }
+
+        function showError(message) {
+            const errorHtml = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>${message}
+            </div>`;
+
+            $('#analytics-content').html(errorHtml).removeClass('d-none');
+            $('#analytics-loading').addClass('d-none');
+        }
+    });
+</script>
+{% endblock %}

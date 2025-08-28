@@ -1,0 +1,122 @@
+{% extends "common/base.html" %}
+
+{% block title %}Add Source - Citadel{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-plus-circle me-2"></i>Add Backup Source</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Source Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('sources.add_source') }}" id="sourceForm">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Source Name</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                            <div class="form-text">A friendly name to identify this backup source</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="source_type" class="form-label">Source Type</label>
+                            <select class="form-select" id="source_type" name="source_type" required>
+                                <option value="local">Local</option>
+                                <option value="ssh">Remote (SSH)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="path" class="form-label">Path</label>
+                            <input type="text" class="form-control" id="path" name="path" required>
+                            <div class="form-text">The directory or file path to backup</div>
+                        </div>
+                        
+                        <!-- SSH specific fields (hidden by default) -->
+                        <div id="ssh-fields" style="display: none;">
+                            <div class="mb-3">
+                                <label for="ssh_host" class="form-label">SSH Host</label>
+                                <input type="text" class="form-control" id="ssh_host" name="ssh_host">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="ssh_port" class="form-label">SSH Port</label>
+                                <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="ssh_user" class="form-label">SSH User</label>
+                                <input type="text" class="form-control" id="ssh_user" name="ssh_user">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="ssh_key_path" class="form-label">SSH Key Path (optional)</label>
+                                <input type="text" class="form-control" id="ssh_key_path" name="ssh_key_path">
+                                <div class="form-text">Path to private key file. Leave empty to use system default.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Add Source</button>
+                            <a href="{{ url_for('sources.list_sources') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Help</h5>
+                </div>
+                <div class="card-body">
+                    <h5>Source Types</h5>
+                    <p><strong>Local</strong>: A path on the same system where Citadel is running.</p>
+                    <p><strong>Remote (SSH)</strong>: A path on a remote system accessible via SSH.</p>
+                    
+                    <h5>Path Examples</h5>
+                    <ul>
+                        <li><strong>Local</strong>: <code>/home/user/documents</code></li>
+                        <li><strong>Remote</strong>: <code>/var/www</code> (combined with SSH settings)</li>
+                    </ul>
+                    
+                    <h5>SSH Settings</h5>
+                    <p>For remote sources, provide the SSH connection details to access the remote system.</p>
+                    <p>SSH key authentication is recommended over password authentication for security.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const sourceTypeSelect = document.getElementById('source_type');
+        const sshFields = document.getElementById('ssh-fields');
+        
+        // Function to toggle SSH fields visibility
+        function toggleSshFields() {
+            if (sourceTypeSelect.value === 'ssh') {
+                sshFields.style.display = 'block';
+                // Make SSH fields required when visible
+                document.getElementById('ssh_host').required = true;
+                document.getElementById('ssh_user').required = true;
+            } else {
+                sshFields.style.display = 'none';
+                // Remove required attribute when hidden
+                document.getElementById('ssh_host').required = false;
+                document.getElementById('ssh_user').required = false;
+            }
+        }
+        
+        // Set initial state
+        toggleSshFields();
+        
+        // Add change listener
+        sourceTypeSelect.addEventListener('change', toggleSshFields);
+    });
+</script>
+{% endblock %}

@@ -1,4 +1,4 @@
-# Tower of Borg
+# Citadel
 
 A web interface for Borg backup, allowing you to manage repositories, create backups, schedule automated backups, and more.
 
@@ -15,8 +15,8 @@ A web interface for Borg backup, allowing you to manage repositories, create bac
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/towerofborg.git
-   cd towerofborg
+   git clone https://github.com/yourusername/citadel.git
+   cd citadel
    ```
 
 2. Create a virtual environment and install dependencies:
@@ -30,7 +30,7 @@ A web interface for Borg backup, allowing you to manage repositories, create bac
    Create a `.env` file with the following variables:
    ```
    SECRET_KEY=your-secret-key
-   DATABASE_URI=sqlite:///towerofborg.db
+   DATABASE_URI=sqlite:///instance/citadel.db
    ADMIN_PASSWORD=your-admin-password
    ```
 
@@ -43,7 +43,7 @@ A web interface for Borg backup, allowing you to manage repositories, create bac
 
 ## Usage
 
-1. Log in with the default admin account (username: admin, password: towerofborg)
+1. Log in with the default admin account (username: admin, password: citadel)
 2. Create a new repository
 3. Add backup sources
 4. Create backups manually or set up schedules
@@ -54,7 +54,7 @@ A web interface for Borg backup, allowing you to manage repositories, create bac
 The project follows a modular structure:
 
 ```
-towerofborg/
+citadel/
 ├── auth/            # Authentication related code
 ├── backup/          # Backup operations and repository management
 ├── models/          # Database models

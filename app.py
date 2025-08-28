@@ -1,5 +1,5 @@
-"""Main application module for Tower of Borg."""
-from towerofborg import create_app
+"""Main application module for Citadel."""
+from citadel import create_app
 import os
 
 # Set environment variables for development

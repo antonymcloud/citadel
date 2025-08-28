@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime
 
 # Connect to the database
-conn = sqlite3.connect('instance/towerofborg.db')
+conn = sqlite3.connect('instance/citadel.db')
 cursor = conn.cursor()
 
 # Create the source table

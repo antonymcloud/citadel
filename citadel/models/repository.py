@@ -1,0 +1,27 @@
+"""Repository model for the Citadel application."""
+from datetime import datetime
+from citadel.models import db
+
+class Repository(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    path = db.Column(db.String(255), nullable=False)
+    encryption = db.Column(db.String(50), default=None)
+    passphrase = db.Column(db.String(255), default=None)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    jobs = db.relationship('Job', backref='repository', lazy=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    max_size = db.Column(db.Float, default=1024)  # Maximum size in GB (default 1TB)
+    
+    def __repr__(self):
+        return f'<Repository {self.name}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'path': self.path,
+            'encryption': self.encryption,
+            'created_at': self.created_at.isoformat(),
+            'max_size': self.max_size
+        }
