@@ -454,11 +454,42 @@
             $('#archivesList').html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Loading archives...</p></div>');
             
             $.getJSON("{{ url_for('backup.list_archives', repo_id=repo.id) }}", function(data) {
-                displayArchives(data);
+                if (data.status === 'running') {
+                    // We got a job ID - start polling for results
+                    pollJobForArchives(data.job_id);
+                } else {
+                    // We got immediate results (legacy mode)
+                    displayArchives(data);
+                }
             }).fail(function() {
                 showError('Failed to communicate with server');
             });
         });
+        
+        // Poll a job for archives data
+        function pollJobForArchives(jobId) {
+            var pollInterval = setInterval(function() {
+                $.getJSON("{{ url_for('backup.api_get_job_status', job_id=0) }}".replace('0', jobId), function(data) {
+                    if (data.status === 'success') {
+                        clearInterval(pollInterval);
+                        
+                        // Get archives from job metadata
+                        if (data.metadata && data.metadata.archives) {
+                            displayArchives(data.metadata.archives);
+                        } else {
+                            showError('No archives found');
+                        }
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        showError('Failed to list archives: ' + (data.error || 'Unknown error'));
+                    }
+                    // If still running, continue polling
+                }).fail(function() {
+                    clearInterval(pollInterval);
+                    showError('Failed to get job status');
+                });
+            }, 1000); // Poll every second
+        }
         
         // Handle prune form submission
         $('#pruneForm').submit(function(e) {

@@ -340,16 +340,14 @@ def list_archives(repo_id):
         return jsonify({'error': 'Permission denied'}), 403
     
     try:
-        # Mock implementation for listing archives
-        # In a real implementation, we would call Borg to list archives
-        archives = [
-            {"name": f"backup-{(datetime.utcnow() - timedelta(days=i)).strftime('%Y-%m-%d')}", 
-             "time": (datetime.utcnow() - timedelta(days=i)).isoformat(),
-             "size": 1024 * 1024 * (i + 1)}
-            for i in range(5)
-        ]
+        # Create a job to list archives using the real implementation
+        job_id = list_archives_util(repo_id)
         
-        return jsonify(archives)
+        if not job_id:
+            return jsonify({"error": "Failed to create list job"}), 500
+            
+        # Return job ID so frontend can poll for completion
+        return jsonify({"status": "running", "job_id": job_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -397,7 +395,9 @@ def api_get_job_status(job_id):
         'timestamp': job.timestamp.isoformat() if job.timestamp else None,
         'completed_at': job.completed_at.isoformat() if job.completed_at else None,
         'log_output': log_output,
-        'total_output_length': len(job.log_output) if job.log_output else 0
+        'total_output_length': len(job.log_output) if job.log_output else 0,
+        'metadata': job.get_metadata(),
+        'error': job.get_metadata().get('error') if job.get_metadata() else None
     })
 
 @backup_bp.route('/api/jobs/<int:job_id>/cancel', methods=['POST'])
