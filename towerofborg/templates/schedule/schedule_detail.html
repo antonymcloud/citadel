@@ -247,7 +247,7 @@
                                         <div class="d-flex align-items-center justify-content-center h-100">
                                             <div class="text-center">
                                                 <h3 id="avg-duration">-</h3>
-                                                <p class="mb-0">minutes</p>
+                                                <p class="mb-0">seconds</p>
                                             </div>
                                         </div>
                                     </div>
@@ -275,23 +275,23 @@
                                     <div class="card-body">
                                         <h6 class="card-title">Job Statistics</h6>
                                         <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div class="text-center">
+                                            <div class="text-center w-100">
                                                 <div class="row g-2">
                                                     <div class="col-4">
-                                                        <div class="border rounded p-1 bg-success text-white">
-                                                            <strong id="successful-jobs">0</strong>
+                                                        <div class="border rounded p-2 bg-success text-white">
+                                                            <strong id="successful-jobs" class="d-block">0</strong>
                                                             <small class="d-block">Success</small>
                                                         </div>
                                                     </div>
                                                     <div class="col-4">
-                                                        <div class="border rounded p-1 bg-danger text-white">
-                                                            <strong id="failed-jobs">0</strong>
+                                                        <div class="border rounded p-2 bg-danger text-white">
+                                                            <strong id="failed-jobs" class="d-block">0</strong>
                                                             <small class="d-block">Failed</small>
                                                         </div>
                                                     </div>
                                                     <div class="col-4">
-                                                        <div class="border rounded p-1 bg-secondary text-white">
-                                                            <strong id="total-jobs">0</strong>
+                                                        <div class="border rounded p-2 bg-secondary text-white">
+                                                            <strong id="total-jobs" class="d-block">0</strong>
                                                             <small class="d-block">Total</small>
                                                         </div>
                                                     </div>
@@ -312,7 +312,10 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="chart-container">
-                                            <canvas id="performance-chart"></canvas>
+                                            <iframe src="{{ url_for('analytics.schedule_performance_chart', schedule_id=schedule.id) }}" 
+                                                width="100%" height="300" frameborder="0"
+                                                style="border:0; overflow:hidden;">
+                                            </iframe>
                                         </div>
                                     </div>
                                 </div>
@@ -376,10 +379,6 @@
 
 {% block scripts %}
 {{ super() }}
-<!-- Chart.js and date adapter -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1/build/global/luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.0/dist/chartjs-adapter-luxon.min.js"></script>
 <script>
     $(document).ready(function() {
         // Load analytics data when page loads
@@ -406,17 +405,6 @@
                     Object.keys(data).forEach(key => {
                         if (data[key] === "None") {
                             data[key] = null;
-                        }
-                        
-                        // Also check nested objects in performance_data
-                        if (key === 'performance_data' && Array.isArray(data[key])) {
-                            data[key].forEach(point => {
-                                Object.keys(point).forEach(pointKey => {
-                                    if (point[pointKey] === "None") {
-                                        point[pointKey] = null;
-                                    }
-                                });
-                            });
                         }
                     });
                     
@@ -452,8 +440,11 @@
             }
             
             // Update average duration
-            if (data.avg_duration_minutes !== undefined) {
-                $('#avg-duration').text(data.avg_duration_minutes.toFixed(1));
+            if (data.avg_duration_seconds !== undefined) {
+                $('#avg-duration').text(Math.round(data.avg_duration_seconds));
+            } else if (data.avg_duration_minutes !== undefined) {
+                // Fallback to minutes if seconds not available, but convert to seconds
+                $('#avg-duration').text(Math.round(data.avg_duration_minutes * 60));
             }
             
             // Update average size
@@ -467,144 +458,15 @@
             $('#failed-jobs').text(data.failed_jobs || 0);
             
             // Update insights
-            $('#efficiency-insight').text(data.insights?.efficiency || 'No data available');
-            $('#issues-insight').text(data.insights?.issues || 'No issues detected');
-            $('#recommendations-insight').text(data.insights?.recommendations || 'No recommendations available');
-            
-            // Create performance chart
-            if (data.performance_data && data.performance_data.length > 0) {
-                createPerformanceChart(data.performance_data);
+            if (data.insights) {
+                $('#efficiency-insight').text(data.insights.efficiency || 'No data available');
+                $('#issues-insight').text(data.insights.issues || 'No issues detected');
+                $('#recommendations-insight').text(data.insights.recommendations || 'No recommendations available');
             }
             
             // Show the analytics content
             $('#analytics-loading').addClass('d-none');
             $('#analytics-content').removeClass('d-none');
-        }
-        
-        function createPerformanceChart(performanceData) {
-            const ctx = document.getElementById('performance-chart').getContext('2d');
-            
-            // Filter and prepare data
-            const validData = [];
-            
-            for (let i = 0; i < performanceData.length; i++) {
-                const item = performanceData[i];
-                
-                // Skip invalid data points
-                if (!item.timestamp || item.timestamp === "None") {
-                    console.log("Skipping invalid data point:", item);
-                    continue;
-                }
-                
-                try {
-                    // Try to parse the date
-                    const dateObj = luxon.DateTime.fromISO(item.timestamp);
-                    if (!dateObj.isValid) {
-                        console.log("Invalid date:", item.timestamp);
-                        continue;
-                    }
-                    
-                    // Add valid data point
-                    validData.push({
-                        date: dateObj.toJSDate(),
-                        duration: item.duration_minutes !== null && item.duration_minutes !== undefined ? 
-                                parseFloat(item.duration_minutes) : null,
-                        size: item.size_gb !== null && item.size_gb !== undefined ? 
-                               parseFloat(item.size_gb) : null
-                    });
-                } catch (e) {
-                    console.error("Error processing data point:", e, item);
-                }
-            }
-            
-            console.log("Processed performance data:", validData);
-            
-            // Check if we have valid data
-            if (validData.length === 0) {
-                console.log("No valid data points for chart");
-                return;
-            }
-            
-            // Destroy existing chart if it exists
-            if (window.performanceChart) {
-                window.performanceChart.destroy();
-            }
-            
-            // Prepare datasets
-            const durationData = validData.map(item => ({
-                x: item.date,
-                y: item.duration
-            }));
-            
-            const sizeData = validData.map(item => ({
-                x: item.date,
-                y: item.size
-            }));
-            
-            // Create new chart
-            window.performanceChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [
-                        {
-                            label: 'Duration (minutes)',
-                            data: durationData,
-                            borderColor: 'rgba(255, 99, 132, 1)',
-                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                            yAxisID: 'y',
-                            fill: false
-                        },
-                        {
-                            label: 'Size (GB)',
-                            data: sizeData,
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            yAxisID: 'y1',
-                            fill: false
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: {
-                                unit: 'day',
-                                displayFormats: {
-                                    day: 'MMM d'
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Date'
-                            }
-                        },
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            title: {
-                                display: true,
-                                text: 'Duration (minutes)'
-                            }
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: {
-                                display: true,
-                                text: 'Size (GB)'
-                            },
-                            grid: {
-                                drawOnChartArea: false
-                            }
-                        }
-                    }
-                }
-            });
         }
         
         function showError(message) {
@@ -618,5 +480,4 @@
         }
     });
 </script>
-{% endblock %}
 {% endblock %}

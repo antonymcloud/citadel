@@ -50,13 +50,26 @@ class SimpleChart:
         <script>
             (function() {{
                 console.log('Initializing chart: {self.chart_id}');
-                console.log('Chart config:', {json.dumps(chart_config)});
                 
                 function renderChart() {{
                     try {{
                         if (typeof Chart === 'undefined') {{
                             console.error('Chart.js not loaded for {self.chart_id}');
                             document.getElementById('{self.chart_id}_error').classList.remove('d-none');
+                            
+                            // Try to load Chart.js dynamically as a fallback
+                            var script = document.createElement('script');
+                            script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                            script.onload = function() {{
+                                console.log('Chart.js loaded dynamically');
+                                document.getElementById('{self.chart_id}_error').classList.add('d-none');
+                                var ctx = document.getElementById('{self.chart_id}').getContext('2d');
+                                new Chart(ctx, {json.dumps(chart_config)});
+                            }};
+                            script.onerror = function() {{
+                                console.error('Failed to load Chart.js dynamically');
+                            }};
+                            document.head.appendChild(script);
                             return;
                         }}
                         var ctx = document.getElementById('{self.chart_id}').getContext('2d');
@@ -79,6 +92,76 @@ class SimpleChart:
         """
         return Markup(html)
     
+    def standalone_render(self):
+        """Render the chart as a standalone HTML document with embedded Chart.js."""
+        chart_config = {
+            "type": self.chart_type,
+            "data": self.data,
+            "options": self.options
+        }
+        
+        # Full HTML document with embedded Chart.js
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Chart</title>
+            <!-- Embed Chart.js directly in the document -->
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <style>
+                body {{ margin: 0; padding: 0; overflow: hidden; }}
+                .chart-container {{ 
+                    width: 100%; 
+                    height: 100vh; 
+                    position: relative; 
+                }}
+                .chart-error {{
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background-color: #f8d7da;
+                    border: 1px solid #f5c6cb;
+                    color: #721c24;
+                    padding: 10px;
+                    border-radius: 5px;
+                    max-width: 80%;
+                    text-align: center;
+                }}
+                .chart-error i {{
+                    margin-right: 5px;
+                }}
+                .d-none {{
+                    display: none;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="chart-container">
+                <canvas id="{self.chart_id}"></canvas>
+                <div id="{self.chart_id}_error" class="chart-error d-none">
+                    <i>⚠️</i>Chart rendering failed.
+                </div>
+            </div>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {{
+                    try {{
+                        var ctx = document.getElementById('{self.chart_id}').getContext('2d');
+                        new Chart(ctx, {json.dumps(chart_config)});
+                        console.log('Chart rendered successfully');
+                    }} catch (e) {{
+                        console.error('Error rendering chart:', e);
+                        document.getElementById('{self.chart_id}_error').classList.remove('d-none');
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
+        """
+        return Markup(html)
+        
     def html_only(self):
         """Render only the HTML container for the chart."""
         style = f"height: {self.height}px;"
