@@ -9,18 +9,140 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
+        body {
+            min-height: 100vh;
+        }
         .sidebar {
             height: 100vh;
             position: fixed;
             top: 0;
             left: 0;
-            padding-top: 60px;
+            width: 250px;
+            padding-top: 50px;
             background-color: #f8f9fa;
             border-right: 1px solid #dee2e6;
+            z-index: 100;
         }
         .main-content {
             margin-left: 250px;
             padding: 20px;
+            max-width: calc(100% - 250px);
+        }
+        .main-container {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+        /* Fixed width navbar */
+        .navbar-container {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+        .container-fluid {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        /* Reset navbar padding and margin */
+        .navbar {
+            padding: 0;
+            margin: 0;
+            height: 50px;
+        }
+        /* Fixed width navbar container but with space for fixed logo */
+        .navbar-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding-left: 200px; /* Make space for logo */
+        }
+        /* Position the logo absolutely at the left edge */
+        .navbar-brand-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: auto;
+            display: flex;
+            align-items: center;
+            padding: 0;
+            margin: 0;
+            z-index: 1050;
+            background-color: #212529; /* Same as navbar bg */
+        }
+        .navbar-brand {
+            padding: 0;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            height: 100%;
+            white-space: nowrap;
+        }
+        .navbar-brand img {
+            margin-left: 10px;
+            display: block;
+        }
+        /* Position user dropdown at the far right */
+        .user-dropdown-container {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0;
+            margin: 0;
+            z-index: 1050;
+            background-color: #212529; /* Same as navbar bg */
+        }
+        .user-dropdown {
+            padding: 0 15px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+        .user-dropdown .nav-link {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            padding: 0;
+        }
+        .user-dropdown .dropdown-toggle i {
+            margin-right: 5px;
+        }
+        /* Adjust navbar container to make room for both logo and user dropdown */
+        .navbar-container {
+            padding-left: 200px; /* Space for logo */
+            padding-right: 200px; /* Space for user dropdown */
+        }
+        .navbar-brand img {
+            flex-shrink: 0;
+        }
+        /* Ensure navbar collapse behaves properly */
+        .navbar-collapse {
+            flex-grow: 0;
+        }
+        /* Sidebar adjustments */
+        .sidebar {
+            width: 250px;
+        }
+        @media (max-width: 992px) {
+            .main-content {
+                margin-left: 0;
+                max-width: 100%;
+            }
+            .sidebar {
+                display: none;
+            }
         }
         .nav-link {
             color: #495057;
@@ -34,7 +156,9 @@
             font-weight: bold;
         }
         .flash-messages {
-            margin-top: 60px;
+            margin-top: 50px;
+            width: 100%;
+            padding-top: 10px;
         }
     </style>
     {% block head %}{% endblock %}
@@ -42,32 +166,49 @@
 <body>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('index') }}" style="color: #90ee90;">
-                <img src="{{ url_for('static', filename='tower.svg') }}" height="25px" style="stroke-width: 3px !important;" class="me-2" />Tower of Borg
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    {% if current_user.is_authenticated %}
-                    <li class="nav-item dropdown">
+        <div class="container-fluid p-0">
+            <!-- Absolutely positioned logo that won't move -->
+            <div class="navbar-brand-container">
+                <a class="navbar-brand" href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('index') }}" style="color: #90ee90;">
+                    <img src="{{ url_for('static', filename='tower.svg') }}" height="25px" width="25px" style="stroke-width: 3px !important;" class="me-2" />
+                    <span>Tower of Borg</span>
+                </a>
+            </div>
+            
+            <!-- Rest of navbar with spacing to avoid overlapping logo and user dropdown -->
+            <div class="navbar-container">
+                <button class="navbar-toggler mx-auto" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav mx-auto">
+                        <!-- Middle navbar links can go here if needed -->
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Absolutely positioned user dropdown at the right edge -->
+            <div class="user-dropdown-container">
+                {% if current_user.is_authenticated %}
+                <div class="user-dropdown">
+                    <div class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" style="color: lightgreen !important;" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user me-1"></i>{{ current_user.username }}
+                            <i class="fas fa-user"></i>
+                            <span class="ms-1">{{ current_user.username }}</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
                         </ul>
-                    </li>
-                    {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
-                    </li>
-                    {% endif %}
-                </ul>
+                    </div>
+                </div>
+                {% else %}
+                <div class="user-dropdown">
+                    <a class="nav-link" href="{{ url_for('auth.login') }}" style="color: lightgreen !important;">Login</a>
+                </div>
+                {% endif %}
+            </div>
             </div>
         </div>
     </nav>
@@ -125,22 +266,26 @@
     {% endif %}
 
     <!-- Flash Messages -->
-    <div class="container flash-messages">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+    <div class="flash-messages">
+        <div class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
     </div>
 
     <!-- Main Content -->
     <main class="{% if current_user.is_authenticated %}main-content{% else %}container mt-5 pt-5{% endif %}">
-        {% block content %}{% endblock %}
+        <div class="main-container">
+            {% block content %}{% endblock %}
+        </div>
     </main>
 
     <!-- Bootstrap & jQuery JS -->

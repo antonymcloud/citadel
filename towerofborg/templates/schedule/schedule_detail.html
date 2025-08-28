@@ -7,12 +7,14 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="fas fa-calendar-alt me-2"></i>{{ schedule.name }}</h1>
         <div>
-            <form method="POST" action="{{ url_for('schedules.run_schedule_now', schedule_id=schedule.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('schedules.run_schedule_now', schedule_id=schedule.id) }}"
+                class="d-inline">
                 <button type="submit" class="btn btn-success me-2">
                     <i class="fas fa-play me-1"></i>Run Now
                 </button>
             </form>
-            <form method="POST" action="{{ url_for('schedules.toggle_schedule', schedule_id=schedule.id) }}" class="d-inline">
+            <form method="POST" action="{{ url_for('schedules.toggle_schedule', schedule_id=schedule.id) }}"
+                class="d-inline">
                 {% if schedule.is_active %}
                 <button type="submit" class="btn btn-warning me-2">
                     <i class="fas fa-pause me-1"></i>Pause
@@ -48,13 +50,13 @@
                             {% else %}
                             <span class="badge bg-warning">Inactive</span>
                             {% endif %}
-                            
+
                             <h6 class="fw-bold mt-3">Schedule Type</h6>
                             <p>
                                 {% if schedule.frequency == 'daily' %}
                                 Daily at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
                                 {% elif schedule.frequency == 'weekly' %}
-                                Weekly on 
+                                Weekly on
                                 {% if schedule.day_of_week == 'mon' %}Monday{% endif %}
                                 {% if schedule.day_of_week == 'tue' %}Tuesday{% endif %}
                                 {% if schedule.day_of_week == 'wed' %}Wednesday{% endif %}
@@ -64,13 +66,14 @@
                                 {% if schedule.day_of_week == 'sun' %}Sunday{% endif %}
                                 at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
                                 {% elif schedule.frequency == 'monthly' %}
-                                Monthly on day {{ schedule.day_of_month }} at {{ schedule.hour }}:{{ '%02d' % schedule.minute }}
+                                Monthly on day {{ schedule.day_of_month }} at {{ schedule.hour }}:{{ '%02d' %
+                                schedule.minute }}
                                 {% endif %}
                             </p>
-                            
+
                             <h6 class="fw-bold mt-3">Source</h6>
                             <p>
-                                {{ schedule.source.name }} 
+                                {{ schedule.source.name }}
                                 {% if schedule.source.source_type == 'local' %}
                                 (Local)
                                 {% else %}
@@ -87,7 +90,7 @@
                                 Never
                                 {% endif %}
                             </p>
-                            
+
                             <h6 class="fw-bold mt-3">Next Run</h6>
                             <p>
                                 {% if schedule.next_run and schedule.is_active %}
@@ -96,10 +99,10 @@
                                 Not scheduled
                                 {% endif %}
                             </p>
-                            
+
                             <h6 class="fw-bold mt-3">Repository</h6>
                             <p>{{ schedule.repository.name }}</p>
-                            
+
                             <h6 class="fw-bold mt-3">Archive Prefix</h6>
                             <p>{{ schedule.archive_prefix or "Default" }}</p>
                         </div>
@@ -184,7 +187,8 @@
                                     </td>
                                     <td>{{ job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                                     <td>
-                                        <a href="{{ url_for('backup.job_detail', job_id=job.id) }}" class="btn btn-sm btn-primary">
+                                        <a href="{{ url_for('backup.job_detail', job_id=job.id) }}"
+                                            class="btn btn-sm btn-primary">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                     </td>
@@ -204,96 +208,94 @@
     </div>
 </div>
 
+
+
+<!-- Analytics Dashboard Row -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Schedule Performance Analytics</h5>
+                <button id="refreshAnalytics" class="btn btn-sm btn-light">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
             </div>
-        </div>
-    </div>
-    
-    <!-- Analytics Dashboard Row -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card shadow mb-4">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Schedule Performance Analytics</h5>
-                    <button id="refreshAnalytics" class="btn btn-sm btn-light">
-                        <i class="fas fa-sync-alt me-1"></i>Refresh
-                    </button>
+            <div class="card-body">
+                <div id="analytics-loading" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
+                    <p>Loading schedule analytics...</p>
                 </div>
-                <div class="card-body">
-                    <div id="analytics-loading" class="text-center py-5">
-                        <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
-                        <p>Loading schedule analytics...</p>
-                    </div>
-                    
-                    <div id="analytics-content" class="d-none">
-                        <div class="row">
-                            <!-- Success Rate Card -->
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Success Rate</h6>
-                                        <div class="progress mb-2" style="height: 20px;">
-                                            <div id="success-rate-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
-                                        </div>
-                                        <p class="text-center mb-0" id="success-rate-text">0%</p>
+
+                <div id="analytics-content" class="d-none">
+                    <div class="row">
+                        <!-- Success Rate Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Success Rate</h6>
+                                    <div class="progress mb-2" style="height: 20px;">
+                                        <div id="success-rate-bar" class="progress-bar bg-success" role="progressbar"
+                                            style="width: 0%"></div>
                                     </div>
+                                    <p class="text-center mb-0" id="success-rate-text">0%</p>
                                 </div>
                             </div>
-                            
-                            <!-- Average Duration Card -->
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Average Duration</h6>
-                                        <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div class="text-center">
-                                                <h3 id="avg-duration">-</h3>
-                                                <p class="mb-0">seconds</p>
-                                            </div>
+                        </div>
+
+                        <!-- Average Duration Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Average Duration</h6>
+                                    <div class="d-flex align-items-center justify-content-center h-100">
+                                        <div class="text-center">
+                                            <h3 id="avg-duration">-</h3>
+                                            <p class="mb-0">seconds</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Average Size Card -->
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Average Size</h6>
-                                        <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div class="text-center">
-                                                <h3 id="avg-size">-</h3>
-                                                <p class="mb-0">GB per backup</p>
-                                            </div>
+                        </div>
+
+                        <!-- Average Size Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Average Size</h6>
+                                    <div class="d-flex align-items-center justify-content-center h-100">
+                                        <div class="text-center">
+                                            <h3 id="avg-size">-</h3>
+                                            <p class="mb-0">GB per backup</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Job Count Card -->
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Job Statistics</h6>
-                                        <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div class="text-center w-100">
-                                                <div class="row g-2">
-                                                    <div class="col-4">
-                                                        <div class="border rounded p-2 bg-success text-white">
-                                                            <strong id="successful-jobs" class="d-block">0</strong>
-                                                            <small class="d-block">Success</small>
-                                                        </div>
+                        </div>
+
+                        <!-- Job Count Card -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Job Statistics</h6>
+                                    <div class="d-flex align-items-center justify-content-center h-100">
+                                        <div class="text-center w-100">
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <div class="border rounded p-2 bg-success text-white">
+                                                        <strong id="successful-jobs" class="d-block">0</strong>
+                                                        <small class="d-block">Success</small>
                                                     </div>
-                                                    <div class="col-4">
-                                                        <div class="border rounded p-2 bg-danger text-white">
-                                                            <strong id="failed-jobs" class="d-block">0</strong>
-                                                            <small class="d-block">Failed</small>
-                                                        </div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="border rounded p-2 bg-danger text-white">
+                                                        <strong id="failed-jobs" class="d-block">0</strong>
+                                                        <small class="d-block">Failed</small>
                                                     </div>
-                                                    <div class="col-4">
-                                                        <div class="border rounded p-2 bg-secondary text-white">
-                                                            <strong id="total-jobs" class="d-block">0</strong>
-                                                            <small class="d-block">Total</small>
-                                                        </div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="border rounded p-2 bg-secondary text-white">
+                                                        <strong id="total-jobs" class="d-block">0</strong>
+                                                        <small class="d-block">Total</small>
                                                     </div>
                                                 </div>
                                             </div>
@@ -302,47 +304,48 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="row mt-4">
-                            <!-- Performance Chart -->
-                            <div class="col-md-8">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Backup Performance Over Time</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <iframe src="{{ url_for('analytics.schedule_performance_chart', schedule_id=schedule.id) }}" 
-                                                width="100%" height="300" frameborder="0"
-                                                style="border:0; overflow:hidden;">
-                                            </iframe>
-                                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <!-- Performance Chart -->
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Backup Performance Over Time</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <iframe
+                                            src="{{ url_for('analytics.schedule_performance_chart', schedule_id=schedule.id) }}"
+                                            width="100%" height="300" frameborder="0"
+                                            style="border:0; overflow:hidden;">
+                                        </iframe>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Performance Insights -->
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Performance Insights</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div id="insights-content">
-                                            <div class="alert alert-info">
-                                                <h6 class="alert-heading">Backup Efficiency</h6>
-                                                <p id="efficiency-insight">Loading insights...</p>
-                                            </div>
-                                            
-                                            <div class="alert alert-warning">
-                                                <h6 class="alert-heading">Potential Issues</h6>
-                                                <p id="issues-insight">Loading insights...</p>
-                                            </div>
-                                            
-                                            <div class="alert alert-success">
-                                                <h6 class="alert-heading">Recommendations</h6>
-                                                <p id="recommendations-insight">Loading insights...</p>
-                                            </div>
+                        </div>
+
+                        <!-- Performance Insights -->
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Performance Insights</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="insights-content">
+                                        <div class="alert alert-info">
+                                            <h6 class="alert-heading">Backup Efficiency</h6>
+                                            <p id="efficiency-insight">Loading insights...</p>
+                                        </div>
+
+                                        <div class="alert alert-warning">
+                                            <h6 class="alert-heading">Potential Issues</h6>
+                                            <p id="issues-insight">Loading insights...</p>
+                                        </div>
+
+                                        <div class="alert alert-success">
+                                            <h6 class="alert-heading">Recommendations</h6>
+                                            <p id="recommendations-insight">Loading insights...</p>
                                         </div>
                                     </div>
                                 </div>
@@ -353,6 +356,7 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <!-- Delete Modal -->
@@ -380,55 +384,55 @@
 {% block scripts %}
 {{ super() }}
 <script>
-    $(document).ready(function() {
+    $(document).ready(function () {
         // Load analytics data when page loads
         loadAnalytics();
-        
+
         // Refresh analytics on button click
-        $('#refreshAnalytics').click(function() {
+        $('#refreshAnalytics').click(function () {
             loadAnalytics();
         });
-        
+
         function loadAnalytics() {
             $('#analytics-loading').removeClass('d-none');
             $('#analytics-content').addClass('d-none');
-            
+
             // Load schedule performance data
             $.ajax({
                 url: "{{ url_for('analytics.schedule_performance_api', schedule_id=schedule.id) }}",
                 type: 'GET',
                 dataType: 'json',
-                success: function(data) {
+                success: function (data) {
                     console.log("Performance data loaded:", data);
-                    
+
                     // Convert any "None" string values to null
                     Object.keys(data).forEach(key => {
                         if (data[key] === "None") {
                             data[key] = null;
                         }
                     });
-                    
+
                     updateAnalyticsDisplay(data);
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error('Failed to load analytics data:', error);
                     console.error('Response:', xhr.responseText);
                     showError('Failed to load analytics data: ' + error);
-                    
+
                     // Show the analytics content with error message
                     $('#analytics-loading').addClass('d-none');
                     $('#analytics-content').removeClass('d-none');
                 }
             });
         }
-        
+
         function updateAnalyticsDisplay(data) {
             // Update success rate
             if (data.success_rate !== undefined) {
                 const successRate = data.success_rate;
                 $('#success-rate-bar').css('width', successRate + '%');
                 $('#success-rate-text').text(successRate.toFixed(1) + '%');
-                
+
                 // Color coding for success rate
                 if (successRate < 70) {
                     $('#success-rate-bar').removeClass('bg-success bg-warning').addClass('bg-danger');
@@ -438,7 +442,7 @@
                     $('#success-rate-bar').removeClass('bg-warning bg-danger').addClass('bg-success');
                 }
             }
-            
+
             // Update average duration
             if (data.avg_duration_seconds !== undefined) {
                 $('#avg-duration').text(Math.round(data.avg_duration_seconds));
@@ -446,35 +450,35 @@
                 // Fallback to minutes if seconds not available, but convert to seconds
                 $('#avg-duration').text(Math.round(data.avg_duration_minutes * 60));
             }
-            
+
             // Update average size
             if (data.avg_size_gb !== undefined) {
                 $('#avg-size').text(data.avg_size_gb.toFixed(2));
             }
-            
+
             // Update job counts
             $('#total-jobs').text(data.total_jobs || 0);
             $('#successful-jobs').text(data.successful_jobs || 0);
             $('#failed-jobs').text(data.failed_jobs || 0);
-            
+
             // Update insights
             if (data.insights) {
                 $('#efficiency-insight').text(data.insights.efficiency || 'No data available');
                 $('#issues-insight').text(data.insights.issues || 'No issues detected');
                 $('#recommendations-insight').text(data.insights.recommendations || 'No recommendations available');
             }
-            
+
             // Show the analytics content
             $('#analytics-loading').addClass('d-none');
             $('#analytics-content').removeClass('d-none');
         }
-        
+
         function showError(message) {
             const errorHtml = `
             <div class="alert alert-danger">
                 <i class="fas fa-exclamation-circle me-2"></i>${message}
             </div>`;
-            
+
             $('#analytics-content').html(errorHtml).removeClass('d-none');
             $('#analytics-loading').addClass('d-none');
         }
