@@ -54,7 +54,7 @@ def add_schedule():
         if not name or not repository_id or not source_id or not frequency:
             flash('Schedule name, repository, source and frequency are required.', 'danger')
             return render_template('schedule/add_schedule.html', 
-                                  repositories=repositories,
+                                  repos=repositories,
                                   sources=sources)
         
         # Create schedule
@@ -89,7 +89,7 @@ def add_schedule():
         return redirect(url_for('schedules.list_schedules'))
     
     return render_template('schedule/add_schedule.html', 
-                          repositories=repositories,
+                          repos=repositories,
                           sources=sources)
 
 @schedules_bp.route('/<int:schedule_id>')
@@ -145,7 +145,7 @@ def edit_schedule(schedule_id):
             flash('Schedule name, repository, source and frequency are required.', 'danger')
             return render_template('schedule/edit_schedule.html', 
                                   schedule=schedule,
-                                  repositories=repositories,
+                                  repos=repositories,
                                   sources=sources)
         
         # Update schedule
@@ -182,7 +182,7 @@ def edit_schedule(schedule_id):
     
     return render_template('schedule/edit_schedule.html', 
                           schedule=schedule,
-                          repositories=repositories,
+                          repos=repositories,
                           sources=sources)
 
 @schedules_bp.route('/<int:schedule_id>/toggle', methods=['POST'])
