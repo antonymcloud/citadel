@@ -7,6 +7,7 @@ from citadel.models import db
 from citadel.models.repository import Repository
 from citadel.models.job import Job
 from citadel.models.source import Source
+from citadel.models.schedule import Schedule
 from citadel.backup.utils import run_backup_job, list_archives as list_archives_util, extract_stats_from_output
 
 backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
@@ -82,6 +83,79 @@ def repository_detail(repo_id):
                            jobs=jobs, 
                            archives=archives,
                            sources=sources)
+
+@backup_bp.route('/repository/<int:repo_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_repository(repo_id):
+    """Edit an existing repository"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        flash('You do not have permission to edit this repository.', 'danger')
+        return redirect(url_for('backup.list_repositories'))
+    
+    if request.method == 'POST':
+        name = request.form.get('name')
+        path = request.form.get('path')
+        encryption = request.form.get('encryption')
+        passphrase = request.form.get('passphrase')
+        max_size = request.form.get('max_size', type=float)
+        
+        # Validate inputs
+        if not name or not path:
+            flash('Repository name and path are required.', 'danger')
+            return redirect(url_for('backup.edit_repository', repo_id=repo_id))
+        
+        # Check if repository name already exists and it's not the current one
+        existing_repo = Repository.query.filter_by(name=name, user_id=current_user.id).first()
+        if existing_repo and existing_repo.id != repository.id:
+            flash('A repository with that name already exists.', 'danger')
+            return redirect(url_for('backup.edit_repository', repo_id=repo_id))
+        
+        # Update repository
+        repository.name = name
+        repository.path = path
+        repository.encryption = encryption if encryption != 'none' else None
+        # Only update passphrase if provided
+        if passphrase:
+            repository.passphrase = passphrase
+        if max_size:
+            repository.max_size = max_size
+        
+        db.session.commit()
+        
+        flash('Repository updated successfully.', 'success')
+        return redirect(url_for('backup.repository_detail', repo_id=repository.id))
+    
+    return render_template('backup/edit_repository.html', repo=repository)
+
+@backup_bp.route('/repository/<int:repo_id>/delete', methods=['POST'])
+@login_required
+def delete_repository(repo_id):
+    """Delete a repository"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        flash('You do not have permission to delete this repository.', 'danger')
+        return redirect(url_for('backup.list_repositories'))
+    
+    # Get the name for the success message
+    repo_name = repository.name
+    
+    # Delete associated schedules first
+    Schedule.query.filter_by(repository_id=repo_id).delete()
+    
+    # Delete associated jobs
+    Job.query.filter_by(repository_id=repo_id).delete()
+    
+    # Delete the repository
+    db.session.delete(repository)
+    db.session.commit()
+    
+    flash(f'Repository "{repo_name}" has been deleted.', 'success')
+    return redirect(url_for('backup.list_repositories'))
 
 # Add more routes for creating backups, pruning, etc.
 

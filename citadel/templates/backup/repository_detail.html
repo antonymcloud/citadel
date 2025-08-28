@@ -40,6 +40,12 @@
             <a href="{{ url_for('backup.create_backup') }}?repo_id={{ repo.id }}" class="btn btn-success">
                 <i class="fas fa-plus-circle me-2"></i>Create Backup
             </a>
+            <a href="{{ url_for('backup.edit_repository', repo_id=repo.id) }}" class="btn btn-primary">
+                <i class="fas fa-edit me-2"></i>Edit
+            </a>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteRepoModal">
+                <i class="fas fa-trash-alt me-2"></i>Delete
+            </button>
             <a href="{{ url_for('backup.list_repositories') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Back to Repositories
             </a>
@@ -979,4 +985,27 @@
         }
     });
 </script>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteRepoModal" tabindex="-1" aria-labelledby="deleteRepoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteRepoModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the repository "{{ repo.name }}"?</p>
+                <p><strong>Warning:</strong> This will only remove the repository from Citadel. The actual data on disk will not be deleted.</p>
+                <p>All associated jobs and schedules will be deleted from the database.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('backup.delete_repository', repo_id=repo.id) }}">
+                    <button type="submit" class="btn btn-danger">Delete Repository</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

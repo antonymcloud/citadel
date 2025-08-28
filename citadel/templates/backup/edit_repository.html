@@ -1,0 +1,122 @@
+{% extends "common/base.html" %}
+
+{% block title %}Edit Repository - Citadel{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="fas fa-edit me-2"></i>Edit Repository</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Repository Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('backup.edit_repository', repo_id=repo.id) }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Repository Name</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ repo.name }}" required>
+                            <div class="form-text">A friendly name to identify this repository</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="path" class="form-label">Repository Path</label>
+                            <input type="text" class="form-control" id="path" name="path" value="{{ repo.path }}" required>
+                            <div class="form-text">Local path or remote URL (ssh://user@host:port/path)</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="encryption" class="form-label">Encryption</label>
+                            <select class="form-select" id="encryption" name="encryption">
+                                <option value="none" {% if not repo.encryption %}selected{% endif %}>None</option>
+                                <option value="repokey" {% if repo.encryption == 'repokey' %}selected{% endif %}>repokey</option>
+                                <option value="repokey-blake2" {% if repo.encryption == 'repokey-blake2' %}selected{% endif %}>repokey-blake2</option>
+                                <option value="keyfile" {% if repo.encryption == 'keyfile' %}selected{% endif %}>keyfile</option>
+                                <option value="keyfile-blake2" {% if repo.encryption == 'keyfile-blake2' %}selected{% endif %}>keyfile-blake2</option>
+                            </select>
+                            <div class="form-text">Encryption type (changing this won't re-encrypt the repository)</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="passphrase" class="form-label">Passphrase</label>
+                            <input type="password" class="form-control" id="passphrase" name="passphrase" placeholder="Leave empty to keep current passphrase">
+                            <div class="form-text">Enter a new passphrase or leave empty to keep the current one</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="max_size" class="form-label">Maximum Size (GB)</label>
+                            <input type="number" class="form-control" id="max_size" name="max_size" value="{{ repo.max_size }}" min="1" step="0.1">
+                            <div class="form-text">Maximum allowed size in gigabytes</div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            <a href="{{ url_for('backup.repository_detail', repo_id=repo.id) }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Help</h5>
+                </div>
+                <div class="card-body">
+                    <h5>Repository Path</h5>
+                    <p>This can be either:</p>
+                    <ul>
+                        <li>A local path: <code>/path/to/repo</code></li>
+                        <li>A remote SSH path: <code>user@host:/path/to/repo</code></li>
+                        <li>Full SSH URL: <code>ssh://user@host:port/path/to/repo</code></li>
+                    </ul>
+                    
+                    <h5>Encryption</h5>
+                    <p><strong>Warning:</strong> Changing the encryption setting here only updates what Citadel knows about the repository. It does not re-encrypt the actual repository.</p>
+                    
+                    <h5>Passphrase</h5>
+                    <p>Leave the passphrase field empty to keep using the current passphrase.</p>
+                </div>
+            </div>
+            
+            <!-- Delete Repository Card -->
+            <div class="card shadow border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-trash-alt me-2"></i>Delete Repository</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Warning:</strong> Deleting a repository from Citadel will remove it from the database. The actual repository data will not be deleted from disk.</p>
+                    <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#deleteRepoModal">
+                        Delete Repository
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteRepoModal" tabindex="-1" aria-labelledby="deleteRepoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteRepoModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the repository "{{ repo.name }}"?</p>
+                <p><strong>Warning:</strong> This will only remove the repository from Citadel. The actual data on disk will not be deleted.</p>
+                <p>All associated jobs and schedules will be deleted from the database.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('backup.delete_repository', repo_id=repo.id) }}">
+                    <button type="submit" class="btn btn-danger">Delete Repository</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
