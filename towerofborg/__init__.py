@@ -4,7 +4,37 @@ from flask import Flask, render_template, redirect, url_for, jsonify
 from flask_login import current_user, login_required
 import os
 import atexit
+import logging
+import sys
 from dotenv import load_dotenv
+
+def configure_logging(app):
+    """Configure logging for the application."""
+    log_level = app.config.get('LOG_LEVEL', 'DEBUG')
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        numeric_level = logging.DEBUG
+
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(numeric_level)
+    
+    # Create console handler if not already present
+    has_console_handler = any(isinstance(h, logging.StreamHandler) and h.stream == sys.stdout 
+                             for h in root_logger.handlers)
+    
+    if not has_console_handler:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(numeric_level)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+    
+    # Set specific logger levels
+    logging.getLogger('towerofborg').setLevel(numeric_level)
+    logging.getLogger('towerofborg.analytics').setLevel(numeric_level)
+    
+    app.logger.debug("Logging configured successfully")
 
 def create_app(config=None):
     """Create and configure the Flask application."""
@@ -20,11 +50,15 @@ def create_app(config=None):
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-key-change-in-production'),
         SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URI', 'sqlite:///../towerofborg.db'),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        DEBUG=True
+        DEBUG=True,
+        LOG_LEVEL=os.environ.get('LOG_LEVEL', 'DEBUG')
     )
     
     # Load environment variables starting with TOWEROFBORG_
     app.config.from_prefixed_env(prefix='TOWEROFBORG')
+    
+    # Configure logging
+    configure_logging(app)
     
     # Initialize database
     from towerofborg.models import db

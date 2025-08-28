@@ -18,8 +18,16 @@ def sanitize_data(data):
         return 0
     
     if isinstance(data, dict):
+        # Debug output for estimated_runway
+        if 'estimated_runway' in data:
+            logger.debug(f"sanitize_data: estimated_runway before = {data['estimated_runway']}")
+            
         for key in data:
             data[key] = sanitize_data(data[key])
+            
+        # Debug output for estimated_runway after sanitization
+        if 'estimated_runway' in data:
+            logger.debug(f"sanitize_data: estimated_runway after = {data['estimated_runway']}")
     elif isinstance(data, list):
         for i, item in enumerate(data):
             data[i] = sanitize_data(item)
@@ -37,6 +45,7 @@ def calculate_repository_stats(repository_id):
     """
     logger.debug(f"Calculating stats for repository ID: {repository_id}")
     
+    # Initialize with default values
     stats = {
         'total_jobs': 0,
         'successful_jobs': 0,
@@ -47,8 +56,10 @@ def calculate_repository_stats(repository_id):
         'latest_size': None,
         'size_trend': [],
         'space_usage': 0,
-        'estimated_runway': 0
+        'estimated_runway': 0  # Default to 0, we'll update this later
     }
+    
+    logger.debug(f"Initial estimated_runway value: {stats['estimated_runway']}")
     
     # Get all successful backup jobs for this repository
     jobs = Job.query.filter_by(
@@ -68,6 +79,23 @@ def calculate_repository_stats(repository_id):
     
     if not jobs:
         logger.debug("No successful jobs found for this repository")
+        
+        # Before returning, set a reasonable runway value
+        repository = Repository.query.get(repository_id)
+        max_size_gb = 1024  # Default to 1TB
+        if repository and repository.max_size:
+            max_size_gb = repository.max_size
+            
+        # Use an estimated size if we don't have actual data
+        estimated_size = max_size_gb * 0.05  # Assume 5% used as a starting point
+        
+        # Calculate an estimated runway
+        estimated_growth = max(0.001, estimated_size * 0.001)  # At least 1MB/day growth
+        remaining_space = max_size_gb - estimated_size
+        runway_days = int(remaining_space / estimated_growth)
+        stats['estimated_runway'] = min(runway_days, 365 * 3)  # Cap at 3 years
+        
+        logger.debug(f"No jobs - set estimated runway to {stats['estimated_runway']} days")
         return stats
         
     # Collect size data over time for trend analysis
@@ -163,13 +191,25 @@ def calculate_repository_stats(repository_id):
                 start_time = datetime.fromisoformat(first_point['timestamp'])
                 end_time = datetime.fromisoformat(last_point['timestamp'])
                 days_diff = (end_time - start_time).days
+                hours_diff = (end_time - start_time).total_seconds() / 3600
                 
-                logger.debug(f"Time difference: {days_diff} days")
+                logger.debug(f"Time difference: {days_diff} days ({hours_diff:.2f} hours)")
                 
-                if days_diff > 0:
+                # If less than a day, use hours to calculate a daily rate
+                if days_diff == 0 and hours_diff > 0:
+                    logger.debug(f"Using hourly data to calculate daily growth rate")
+                    size_diff = last_point['size_gb'] - first_point['size_gb']
+                    # Convert hourly growth to daily growth
+                    daily_growth = (size_diff / hours_diff) * 24
+                    logger.debug(f"Size difference: {size_diff} GB, Hourly growth: {size_diff / hours_diff} GB/hour, Estimated daily growth: {daily_growth} GB/day")
+                elif days_diff > 0:
                     size_diff = last_point['size_gb'] - first_point['size_gb']
                     daily_growth = size_diff / days_diff
                     logger.debug(f"Size difference: {size_diff} GB, Daily growth: {daily_growth} GB/day")
+                else:
+                    # Default to a small growth estimate if we can't calculate one
+                    daily_growth = 0
+                    logger.debug("Could not calculate growth rate - using default values")
                     
                     # Get repository max size (default to 1TB if not set)
                     repository = Repository.query.get(repository_id)
@@ -179,15 +219,57 @@ def calculate_repository_stats(repository_id):
                     
                     logger.debug(f"Repository max size: {max_size_gb} GB")
                     
+                    # Minimum reasonable growth rate based on current size
+                    # For repositories with actual data, ensure we have a realistic growth estimate
+                    if last_point['size_gb'] > 0.1:  # More than 100MB
+                        # Use 0.1% of current size per day as minimum growth rate when we have data
+                        min_growth_rate = last_point['size_gb'] * 0.001  # 0.1% of current size
+                        
+                        # Ensure minimum growth is at least 1 MB but not more than 100 MB per day
+                        min_growth_rate = max(0.001, min(min_growth_rate, 0.1))
+                        
+                        logger.debug(f"Calculated minimum growth rate: {min_growth_rate} GB/day")
+                        
+                        # Use the larger of actual growth or minimum growth (but only if actual growth is positive)
+                        if daily_growth <= 0 or daily_growth < min_growth_rate:
+                            if daily_growth <= 0:
+                                logger.debug(f"Growth rate {daily_growth} GB/day is negative or zero, using minimum {min_growth_rate} GB/day instead")
+                            else:
+                                logger.debug(f"Growth rate {daily_growth} GB/day is below minimum, using {min_growth_rate} GB/day instead")
+                            daily_growth = min_growth_rate
+                    else:
+                        # For very small repositories, use a fixed minimum
+                        min_growth_rate = 0.001  # 1MB per day
+                        if daily_growth <= 0 or daily_growth < min_growth_rate:
+                            logger.debug(f"Repository is small and growth rate is {daily_growth} GB/day - using minimum {min_growth_rate} GB/day")
+                            daily_growth = min_growth_rate
+                    
                     # Calculate runway in days (if growth is positive)
                     if daily_growth > 0:
                         remaining_space = max_size_gb - last_point['size_gb']
                         runway_days = remaining_space / daily_growth
+                        # Cap runway at a reasonable maximum (3 years)
+                        runway_days = min(runway_days, 365 * 3)
                         stats['estimated_runway'] = int(runway_days)
-                        logger.debug(f"Estimated runway: {stats['estimated_runway']} days")
+                        logger.debug(f"Estimated runway: {stats['estimated_runway']} days based on growth rate of {daily_growth} GB/day")
+                    else:
+                        # This case should rarely happen due to the minimum growth rate logic above
+                        # But as a fallback, use a small positive value based on current size
+                        adjusted_growth = max(0.001, last_point['size_gb'] * 0.001)  # At least 1MB/day
+                        
+                        remaining_space = max_size_gb - last_point['size_gb']
+                        runway_days = remaining_space / adjusted_growth
+                        
+                        # Cap runway at a reasonable maximum (3 years)
+                        runway_days = min(runway_days, 365 * 3)
+                        stats['estimated_runway'] = int(runway_days)
+                        
+                        logger.debug(f"Using fallback adjusted growth rate of {adjusted_growth} GB/day for runway calculation")
+                        logger.debug(f"Fallback estimated runway: {stats['estimated_runway']} days")
                     
                     # Calculate space usage percentage - always do this regardless of growth rate
                     stats['space_usage'] = (last_point['size_gb'] / max_size_gb) * 100
+                    logger.debug(f"Space usage calculation: {last_point['size_gb']} GB / {max_size_gb} GB * 100 = {stats['space_usage']}%")
                     logger.debug(f"Space usage calculation: {last_point['size_gb']} GB / {max_size_gb} GB * 100 = {stats['space_usage']}%")
             except (ValueError, TypeError, KeyError) as e:
                 logger.error(f"Error calculating growth rate: {e}")
@@ -212,6 +294,22 @@ def calculate_repository_stats(repository_id):
         # Calculate sample space usage based on the size we selected
         stats['space_usage'] = (stats['latest_size'] / max_size_gb) * 100
         logger.debug(f"Sample space usage: {stats['latest_size']} GB / {max_size_gb} GB * 100 = {stats['space_usage']}%")
+        
+        # Calculate a reasonable estimated runway when we don't have enough data
+        # Use 0.1% of current size per day as the growth rate
+        estimated_growth = stats['latest_size'] * 0.001  # 0.1% per day
+        # Ensure it's at least 1MB but not more than 100MB per day
+        estimated_growth = max(0.001, min(estimated_growth, 0.1))
+        
+        remaining_space = max_size_gb - stats['latest_size']
+        runway_days = remaining_space / estimated_growth
+        
+        # Cap runway at a reasonable maximum (3 years)
+        runway_days = min(runway_days, 365 * 3)
+        stats['estimated_runway'] = int(runway_days)
+        
+        logger.debug(f"No growth data available - using estimated growth of {estimated_growth} GB/day")
+        logger.debug(f"Estimated runway with no growth data: {stats['estimated_runway']} days")
     
     # Ensure we don't return None values that would break JavaScript
     logger.debug(f"Final stats before sanitizing: {stats}")
@@ -228,8 +326,30 @@ def calculate_repository_stats(repository_id):
         stats['space_usage'] = (stats['latest_size'] / max_size_gb) * 100
         logger.debug(f"Recalculated space usage as last resort: {stats['latest_size']} GB / {max_size_gb} GB * 100 = {stats['space_usage']}%")
     
+    # Final fallback for estimated_runway if it's still zero or missing
+    if 'estimated_runway' not in stats or stats['estimated_runway'] == 0:
+        logger.debug(f"Estimated runway is still zero or missing - using fallback calculation")
+        
+        repository = Repository.query.get(repository_id)
+        max_size_gb = 1024  # Default to 1TB
+        if repository and repository.max_size:
+            max_size_gb = repository.max_size
+            
+        current_size = stats.get('latest_size', max_size_gb * 0.1)  # Assume 10% used if no size data
+        # Use a conservative growth rate of 0.1% of current size per day, minimum 1MB
+        estimated_growth = max(0.001, current_size * 0.001)
+        
+        remaining_space = max_size_gb - current_size
+        runway_days = int(remaining_space / estimated_growth)
+        
+        # Cap at 3 years (1095 days)
+        runway_days = min(runway_days, 1095)
+        
+        stats['estimated_runway'] = runway_days
+        logger.debug(f"Final fallback estimated runway: {stats['estimated_runway']} days")
+    
     sanitized_stats = sanitize_data(stats)
-    logger.debug(f"Final sanitized stats with space_usage={sanitized_stats['space_usage']}%: {sanitized_stats}")
+    logger.debug(f"Final sanitized stats with space_usage={sanitized_stats['space_usage']}% and estimated_runway={sanitized_stats['estimated_runway']} days: {sanitized_stats}")
     return sanitized_stats
 
 def get_schedule_performance(schedule_id, days=90):
