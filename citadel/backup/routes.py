@@ -329,6 +329,30 @@ def prune_repository(repo_id):
     flash('Prune job created successfully.', 'success')
     return redirect(url_for('backup.repository_detail', repo_id=repo_id))
 
+@backup_bp.route('/repository/<int:repo_id>/archives-view')
+@login_required
+def view_archives(repo_id):
+    """View dedicated page for repository archives"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        flash('You do not have permission to view this repository.', 'danger')
+        return redirect(url_for('backup.list_repositories'))
+    
+    # Get the most recent list job (if any)
+    list_job = Job.query.filter_by(repository_id=repo_id, job_type='list', status='success').order_by(Job.timestamp.desc()).first()
+    
+    archives = []
+    if list_job:
+        # Extract archives from job metadata
+        archives = list_job.get_metadata().get('archives', [])
+    
+    return render_template('backup/archives.html', 
+                           repo=repository, 
+                           archives=archives,
+                           list_job=list_job)
+
 @backup_bp.route('/repository/<int:repo_id>/archives')
 @login_required
 def list_archives(repo_id):
@@ -458,3 +482,548 @@ def update_repository(repo_id):
             return jsonify({'success': False, 'error': 'Invalid value for max_size'}), 400
     
     return jsonify({'success': False, 'error': 'No valid parameters provided'}), 400
+
+@backup_bp.route('/api/repository/<int:repo_id>/stats')
+@login_required
+def api_repository_stats(repo_id):
+    """API endpoint to get repository statistics"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get all successful backup jobs for this repository
+    backup_jobs = Job.query.filter_by(
+        repository_id=repo_id, 
+        job_type='create', 
+        status='success'
+    ).order_by(Job.timestamp.desc()).all()
+    
+    # Get all archives
+    list_job = Job.query.filter_by(
+        repository_id=repo_id, 
+        job_type='list', 
+        status='success'
+    ).order_by(Job.timestamp.desc()).first()
+    
+    # Extract data for analytics
+    total_jobs = Job.query.filter_by(repository_id=repo_id).count()
+    successful_jobs = Job.query.filter_by(repository_id=repo_id, status='success').count()
+    failed_jobs = Job.query.filter_by(repository_id=repo_id, status='failed').count()
+    
+    # Get size data from the most recent successful backup job
+    latest_backup = backup_jobs[0] if backup_jobs else None
+    latest_size = None
+    if latest_backup and latest_backup.get_metadata():
+        metadata = latest_backup.get_metadata()
+        latest_size = metadata.get('deduplicated_size')
+    
+    # Get archives count
+    archives_count = 0
+    if list_job:
+        archives = list_job.get_metadata().get('archives', [])
+        archives_count = len(archives)
+    
+    # Collect size data for growth chart
+    size_trend = []
+    for job in backup_jobs[:30]:  # Limit to last 30 jobs for performance
+        if job.get_metadata():
+            metadata = job.get_metadata()
+            size_trend.append({
+                'date': job.timestamp.isoformat(),
+                'size': metadata.get('deduplicated_size')
+            })
+    
+    # Reverse to get chronological order
+    size_trend.reverse()
+    
+    # Calculate space usage percentage
+    space_usage_percent = None
+    if latest_size and repository.max_size:
+        # Convert size string to bytes for calculation
+        size_value = latest_size
+        if isinstance(size_value, str):
+            # Parse size string (e.g., "5.00 GB")
+            parts = size_value.split()
+            if len(parts) == 2:
+                value = float(parts[0])
+                unit = parts[1].upper()
+                multiplier = 1
+                if unit == 'KB':
+                    multiplier = 1024
+                elif unit == 'MB':
+                    multiplier = 1024 * 1024
+                elif unit == 'GB':
+                    multiplier = 1024 * 1024 * 1024
+                elif unit == 'TB':
+                    multiplier = 1024 * 1024 * 1024 * 1024
+                
+                size_in_bytes = value * multiplier
+                max_size_in_bytes = repository.max_size * 1024 * 1024 * 1024  # Convert GB to bytes
+                space_usage_percent = (size_in_bytes / max_size_in_bytes) * 100
+    
+    return jsonify({
+        'latest_size': latest_size,
+        'max_size': repository.max_size,
+        'space_usage_percent': space_usage_percent,
+        'archives_count': archives_count,
+        'total_jobs': total_jobs,
+        'successful_jobs': successful_jobs,
+        'failed_jobs': failed_jobs,
+        'size_trend': size_trend
+    })
+
+@backup_bp.route('/api/repository/<int:repo_id>/forecast')
+@login_required
+def api_repository_forecast(repo_id):
+    """API endpoint to get repository growth forecast"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get all successful backup jobs for this repository
+    backup_jobs = Job.query.filter_by(
+        repository_id=repo_id, 
+        job_type='create', 
+        status='success'
+    ).order_by(Job.timestamp.asc()).all()
+    
+    # Need at least 2 data points for forecasting
+    if len(backup_jobs) < 2:
+        return jsonify({
+            'forecast_available': False,
+            'message': 'Not enough data for forecasting'
+        })
+    
+    # Extract size data for forecasting
+    size_data = []
+    for job in backup_jobs:
+        if job.get_metadata():
+            metadata = job.get_metadata()
+            size_value = metadata.get('deduplicated_size')
+            if size_value:
+                # Parse size string if needed
+                if isinstance(size_value, str):
+                    parts = size_value.split()
+                    if len(parts) == 2:
+                        value = float(parts[0])
+                        unit = parts[1].upper()
+                        multiplier = 1
+                        if unit == 'KB':
+                            multiplier = 1024
+                        elif unit == 'MB':
+                            multiplier = 1024 * 1024
+                        elif unit == 'GB':
+                            multiplier = 1024 * 1024 * 1024
+                        elif unit == 'TB':
+                            multiplier = 1024 * 1024 * 1024 * 1024
+                        
+                        size_in_bytes = value * multiplier
+                        size_data.append({
+                            'date': job.timestamp.timestamp(),  # Unix timestamp
+                            'size': size_in_bytes
+                        })
+    
+    # Need at least 2 data points after filtering
+    if len(size_data) < 2:
+        return jsonify({
+            'forecast_available': False,
+            'message': 'Not enough valid size data for forecasting'
+        })
+    
+    # Simple linear regression for forecasting
+    # This is a basic implementation - could be more sophisticated
+    x = [d['date'] for d in size_data]
+    y = [d['size'] for d in size_data]
+    
+    n = len(x)
+    mean_x = sum(x) / n
+    mean_y = sum(y) / n
+    
+    # Calculate slope and intercept
+    numerator = sum((x[i] - mean_x) * (y[i] - mean_y) for i in range(n))
+    denominator = sum((x[i] - mean_x) ** 2 for i in range(n))
+    
+    if denominator == 0:
+        return jsonify({
+            'forecast_available': False,
+            'message': 'Cannot calculate forecast (constant data)'
+        })
+    
+    slope = numerator / denominator
+    intercept = mean_y - slope * mean_x
+    
+    # Forecast when repository will reach max size
+    if repository.max_size and slope > 0:
+        max_size_bytes = repository.max_size * 1024 * 1024 * 1024  # Convert GB to bytes
+        time_to_max = (max_size_bytes - intercept) / slope
+        
+        # Convert to readable date
+        max_date = datetime.fromtimestamp(time_to_max)
+        days_until_max = (max_date - datetime.utcnow()).days
+        
+        return jsonify({
+            'forecast_available': True,
+            'growth_rate': slope,  # bytes per second
+            'max_date': max_date.isoformat(),
+            'days_until_max': days_until_max
+        })
+    
+    return jsonify({
+        'forecast_available': False,
+        'message': 'Cannot calculate forecast (no max size or negative growth)'
+    })
+
+@backup_bp.route('/api/repository/<int:repo_id>/growth-chart')
+@login_required
+def api_repository_growth_chart(repo_id):
+    """API endpoint to get repository growth chart data"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get all successful backup jobs for this repository
+    backup_jobs = Job.query.filter_by(
+        repository_id=repo_id, 
+        job_type='create', 
+        status='success'
+    ).order_by(Job.timestamp.asc()).all()
+    
+    # Need at least 2 data points for a meaningful chart
+    if len(backup_jobs) < 2:
+        # Generate sample data for client-side rendering
+        sample_dates = [
+            (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d %H:%M'),
+            (datetime.now() - timedelta(days=25)).strftime('%Y-%m-%d %H:%M'),
+            (datetime.now() - timedelta(days=20)).strftime('%Y-%m-%d %H:%M'),
+            (datetime.now() - timedelta(days=15)).strftime('%Y-%m-%d %H:%M'),
+            (datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d %H:%M'),
+            (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d %H:%M'),
+            datetime.now().strftime('%Y-%m-%d %H:%M')
+        ]
+        sample_sizes = [
+            "1.2 GB", 
+            "1.5 GB", 
+            "1.8 GB", 
+            "2.2 GB", 
+            "2.5 GB", 
+            "2.8 GB", 
+            "3.0 GB"
+        ]
+        sample_labels = [f"Sample Backup {i+1}" for i in range(len(sample_dates))]
+        
+        # Format for client-side rendering
+        sample_data = []
+        for i in range(len(sample_dates)):
+            sample_data.append({
+                'date': sample_dates[i],
+                'size': sample_sizes[i],
+                'label': sample_labels[i]
+            })
+        
+        return jsonify({
+            'is_sample_data': True,
+            'chart_data': sample_data,
+            'growth_data': {
+                'labels': sample_dates,
+                'data': [1.2, 1.5, 1.8, 2.2, 2.5, 2.8, 3.0],  # Values in GB
+                'tooltips': sample_labels
+            },
+            'chart_html': generateSampleGrowthChart()  # Fallback for older clients
+        })
+    
+    # Extract size data from jobs
+    size_data = []
+    dates = []
+    sizes = []
+    labels = []
+    
+    for job in backup_jobs:
+        if job.get_metadata():
+            metadata = job.get_metadata()
+            size_value = metadata.get('deduplicated_size')
+            if size_value:
+                # Process size string to extract numeric value
+                size_numeric = None
+                if isinstance(size_value, str):
+                    size_parts = size_value.strip().split(' ')
+                    if len(size_parts) == 2:
+                        try:
+                            size_numeric = float(size_parts[0])
+                            # Normalize to GB for consistency
+                            if size_parts[1].upper() == 'TB':
+                                size_numeric *= 1024
+                            elif size_parts[1].upper() == 'MB':
+                                size_numeric /= 1024
+                            elif size_parts[1].upper() == 'KB':
+                                size_numeric /= (1024 * 1024)
+                            elif size_parts[1].upper() == 'B':
+                                size_numeric /= (1024 * 1024 * 1024)
+                        except (ValueError, TypeError):
+                            size_numeric = None
+                
+                # Add to data points
+                date_str = job.timestamp.strftime('%Y-%m-%d %H:%M')
+                label = job.archive_name or f"Backup {job.id}"
+                
+                size_data.append({
+                    'date': date_str,
+                    'size': size_value,
+                    'label': label
+                })
+                
+                # Only add to chart data if we have a numeric value
+                if size_numeric is not None:
+                    dates.append(date_str)
+                    sizes.append(size_numeric)
+                    labels.append(label)
+    
+    # If we don't have enough valid data points, return sample
+    if len(size_data) < 2 or len(dates) < 2:
+        return jsonify({
+            'is_sample_data': True,
+            'chart_html': generateSampleGrowthChart()
+        })
+    
+    # Return the data for chart generation
+    return jsonify({
+        'is_sample_data': False,
+        'chart_data': size_data,  # For backward compatibility
+        'growth_data': {
+            'labels': dates,
+            'data': sizes,
+            'tooltips': labels
+        },
+        'chart_html': generateGrowthChartHtml(size_data)  # Fallback for older clients
+    })
+
+@backup_bp.route('/api/repository/<int:repo_id>/frequency-chart')
+@login_required
+def api_repository_frequency_chart(repo_id):
+    """API endpoint to get backup frequency chart data"""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check - make sure the repository belongs to the current user
+    if repository.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get all successful backup jobs for this repository
+    backup_jobs = Job.query.filter_by(
+        repository_id=repo_id, 
+        job_type='create', 
+        status='success'
+    ).order_by(Job.timestamp.asc()).all()
+    
+    # Need at least 2 data points for a meaningful chart
+    if len(backup_jobs) < 2:
+        # Return sample data in a format suitable for client-side chart rendering
+        days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        day_counts = [2, 3, 1, 5, 2, 0, 1]  # Sample data
+        hour_counts = [0, 0, 1, 0, 0, 2, 3, 2, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 2, 0, 0, 0, 0, 0]  # Sample data
+        
+        return jsonify({
+            'is_sample_data': True,
+            'frequency_data': {
+                'by_day': {
+                    'labels': days_of_week,
+                    'data': day_counts
+                },
+                'by_hour': {
+                    'labels': [f"{h}:00" for h in range(24)],
+                    'data': hour_counts
+                }
+            },
+            'chart_html': generateSampleFrequencyChart()  # Fallback for older clients
+        })
+    
+    # Count backups by day of week
+    days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    day_counts = [0] * 7
+    
+    for job in backup_jobs:
+        if job.timestamp:
+            # Python's weekday() returns 0 for Monday, 6 for Sunday
+            day_index = job.timestamp.weekday()
+            day_counts[day_index] += 1
+    
+    # Count backups by hour of day
+    hour_counts = [0] * 24
+    for job in backup_jobs:
+        if job.timestamp:
+            hour = job.timestamp.hour
+            hour_counts[hour] += 1
+    
+    # Return the data for chart generation
+    return jsonify({
+        'is_sample_data': False,
+        'frequency_data': {
+            'by_day': {
+                'labels': days_of_week,
+                'data': day_counts
+            },
+            'by_hour': {
+                'labels': [f"{h}:00" for h in range(24)],
+                'data': hour_counts
+            }
+        },
+        'days_of_week': days_of_week,  # For backward compatibility
+        'day_counts': day_counts,      # For backward compatibility
+        'hour_counts': hour_counts,    # For backward compatibility
+        'chart_html': generateFrequencyChartHtml(days_of_week, day_counts, hour_counts)  # Fallback for older clients
+    })
+
+# Helper functions for chart generation
+def generateSampleGrowthChart():
+    """Generate a sample growth chart when not enough data is available"""
+    return """
+    <div class="alert alert-info text-center">
+        <i class="fas fa-info-circle me-2"></i>
+        Not enough backup data available to generate a growth chart.
+        Create more backups to see repository growth over time.
+    </div>
+    """
+
+def generateGrowthChartHtml(data):
+    """Generate HTML for growth chart"""
+    # This is a simple implementation - could be more sophisticated
+    if not data:
+        return generateSampleGrowthChart()
+    
+    # In a real implementation, this would generate a chart
+    return """
+    <canvas id="growthChart"></canvas>
+    <script>
+        var ctx = document.getElementById('growthChart').getContext('2d');
+        var chartData = """ + str(data).replace("'", '"') + """;
+        var labels = chartData.map(d => d.date);
+        var values = chartData.map(d => d.size);
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Repository Size',
+                    data: values,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Size'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    """
+
+def generateSampleFrequencyChart():
+    """Generate a sample frequency chart when not enough data is available"""
+    return """
+    <div class="alert alert-info text-center">
+        <i class="fas fa-info-circle me-2"></i>
+        Not enough backup data available to generate a frequency chart.
+        Create more backups to see backup frequency patterns.
+    </div>
+    """
+
+def generateFrequencyChartHtml(days, day_counts, hour_counts):
+    """Generate HTML for frequency chart"""
+    # This is a simple implementation - could be more sophisticated
+    if not days or not day_counts or not hour_counts:
+        return generateSampleFrequencyChart()
+    
+    # In a real implementation, this would generate a chart
+    return """
+    <div class="row">
+        <div class="col-md-6">
+            <canvas id="dayFrequencyChart"></canvas>
+        </div>
+        <div class="col-md-6">
+            <canvas id="hourFrequencyChart"></canvas>
+        </div>
+    </div>
+    <script>
+        // Day of week chart
+        var dayCtx = document.getElementById('dayFrequencyChart').getContext('2d');
+        var dayChart = new Chart(dayCtx, {
+            type: 'bar',
+            data: {
+                labels: """ + str(days).replace("'", '"') + """,
+                datasets: [{
+                    label: 'Backups by Day of Week',
+                    data: """ + str(day_counts) + """,
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Number of Backups'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Hour of day chart
+        var hourCtx = document.getElementById('hourFrequencyChart').getContext('2d');
+        var hourLabels = Array.from({length: 24}, (_, i) => i + ':00');
+        var hourChart = new Chart(hourCtx, {
+            type: 'bar',
+            data: {
+                labels: hourLabels,
+                datasets: [{
+                    label: 'Backups by Hour of Day',
+                    data: """ + str(hour_counts) + """,
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Number of Backups'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    """

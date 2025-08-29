@@ -14,20 +14,37 @@
         height: 100% !important;
         overflow: hidden;
     }
+
     .progress-label {
         position: absolute;
         right: 15px;
         font-weight: bold;
     }
+
     .forecast-label {
         font-size: 0.8rem;
         color: #6c757d;
     }
+
     .chart-wrapper {
         width: 100%;
         height: 300px;
         position: relative;
         overflow: hidden;
+    }
+
+    .success-rate-container {
+        position: relative;
+        height: 300px;
+    }
+
+    .success-rate-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2rem;
+        font-weight: bold;
     }
 </style>
 {% endblock %}
@@ -35,115 +52,128 @@
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="fas fa-database me-2"></i>{{ repo.name }}</h1>
+        <h1 class="h3 mb-0"><i class="fas fa-archive text-primary me-2"></i>{{ repo.name }}</h1>
         <div class="btn-group">
-            <a href="{{ url_for('backup.create_backup') }}?repo_id={{ repo.id }}" class="btn btn-success">
-                <i class="fas fa-plus-circle me-2"></i>Create Backup
+            <a href="{{ url_for('backup.create_backup') }}?repo_id={{ repo.id }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>New Backup
             </a>
-            <a href="{{ url_for('backup.edit_repository', repo_id=repo.id) }}" class="btn btn-primary">
-                <i class="fas fa-edit me-2"></i>Edit
-            </a>
-            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteRepoModal">
-                <i class="fas fa-trash-alt me-2"></i>Delete
+            <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split"
+                data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">Toggle Dropdown</span>
             </button>
-            <a href="{{ url_for('backup.list_repositories') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Back to Repositories
-            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item" href="{{ url_for('backup.view_archives', repo_id=repo.id) }}">
+                        <i class="fas fa-list me-2"></i>List Archives
+                    </a>
+                </li>
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
+                <li>
+                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#pruneModal">
+                        <i class="fas fa-broom me-2"></i>Prune Repository
+                    </a>
+                </li>
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
+                <li>
+                    <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal"
+                        data-bs-target="#deleteRepoModal">
+                        <i class="fas fa-trash-alt me-2"></i>Delete Repository
+                    </a>
+                </li>
+            </ul>
         </div>
     </div>
-    
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card shadow mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Repository Details</h5>
-                </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6 col-xl-3 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
                 <div class="card-body">
-                    <table class="table">
-                        <tr>
-                            <th>Name:</th>
-                            <td>{{ repo.name }}</td>
-                        </tr>
-                        <tr>
-                            <th>Path:</th>
-                            <td>{{ repo.path }}</td>
-                        </tr>
-                        <tr>
-                            <th>Encryption:</th>
-                            <td>{{ repo.encryption or 'None' }}</td>
-                        </tr>
-                        <tr>
-                            <th>Created:</th>
-                            <td>{{ repo.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                        </tr>
-                        <tr>
-                            <th>Max Size:</th>
-                            <td>
-                                <span id="maxSizeDisplay">{{ repo.max_size }} GB</span>
-                                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" 
-                                        data-bs-toggle="modal" data-bs-target="#maxSizeModal">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-            
-            <div class="card shadow mb-4">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">Maintenance</h5>
-                </div>
-                <div class="card-body">
-                    <form id="pruneForm" action="{{ url_for('backup.prune_repository', repo_id=repo.id) }}" method="POST">
-                        <h6>Prune Repository</h6>
-                        <p class="text-muted">Remove archives according to retention policy</p>
-                        
-                        <div class="mb-3">
-                            <label for="keep_daily" class="form-label">Keep daily</label>
-                            <input type="number" class="form-control" id="keep_daily" name="keep_daily" value="7" min="1">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Repository Path</div>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="keep_weekly" class="form-label">Keep weekly</label>
-                            <input type="number" class="form-control" id="keep_weekly" name="keep_weekly" value="4" min="1">
+                        <div class="col-auto">
+                            <i class="fas fa-folder fa-2x text-gray-300"></i>
+
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="keep_monthly" class="form-label">Keep monthly</label>
-                            <input type="number" class="form-control" id="keep_monthly" name="keep_monthly" value="6" min="1">
-                        </div>
-                        
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-warning">Prune Repository</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-8">
-            <div class="card shadow">
-                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Archives</h5>
-                    <button id="refreshArchives" class="btn btn-sm btn-light">
-                        <i class="fas fa-sync-alt me-1"></i>Refresh
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="archivesList">
-                        <div class="text-center">
-                            <button id="loadArchives" class="btn btn-primary">
-                                <i class="fas fa-list me-2"></i>Load Archives
-                            </button>
+                    </div>
+                    <div class="row no-gutters align-items-start">
+                        <div class="col-auto">
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ repo.path }}</div>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="card shadow mt-4">
-                <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0">Recent Jobs</h5>
+        </div>
+
+        <div class="col-md-6 col-xl-3 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Jobs</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ jobs|length }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-tasks fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Scheduled Jobs</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ schedules|default([])|length }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Last Backup</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {% set last_backup = jobs|selectattr('job_type', 'equalto',
+                                'create')|sort(attribute='timestamp', reverse=true)|first %}
+                                {% if last_backup %}
+                                {{ last_backup.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                Never
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Job History
+                    </h5>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -153,44 +183,79 @@
                                     <th>ID</th>
                                     <th>Type</th>
                                     <th>Status</th>
-                                    <th>Started</th>
+                                    <th>Start Time</th>
+                                    <th>Duration</th>
+                                    <th>Size</th>
+                                    <th>Archive</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for job in jobs %}
+                                {% for job in jobs|sort(attribute='timestamp', reverse=true) %}
                                 <tr>
                                     <td>{{ job.id }}</td>
                                     <td>
                                         {% if job.job_type == 'create' %}
-                                            <span class="badge bg-primary">Create</span>
+                                        <span class="badge bg-success">Backup</span>
+                                        {% elif job.job_type == 'check' %}
+                                        <span class="badge bg-info">Check</span>
+                                        {% elif job.job_type == 'list' %}
+                                        <span class="badge bg-secondary">List</span>
                                         {% elif job.job_type == 'prune' %}
-                                            <span class="badge bg-warning">Prune</span>
+                                        <span class="badge bg-warning">Prune</span>
                                         {% else %}
-                                            <span class="badge bg-secondary">{{ job.job_type }}</span>
+                                        <span class="badge bg-primary">{{ job.job_type|capitalize }}</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if job.status == 'running' %}
-                                            <span class="badge bg-warning">Running</span>
-                                        {% elif job.status == 'success' %}
-                                            <span class="badge bg-success">Success</span>
+                                        {% if job.status == 'success' %}
+                                        <span class="text-success"><i
+                                                class="fas fa-check-circle me-1"></i>Success</span>
                                         {% elif job.status == 'failed' %}
-                                            <span class="badge bg-danger">Failed</span>
+                                        <span class="text-danger"><i class="fas fa-times-circle me-1"></i>Failed</span>
+                                        {% elif job.status == 'running' %}
+                                        <span class="text-primary"><i
+                                                class="fas fa-spinner fa-spin me-1"></i>Running</span>
                                         {% else %}
-                                            <span class="badge bg-secondary">{{ job.status }}</span>
+                                        {{ job.status|capitalize }}
                                         {% endif %}
                                     </td>
                                     <td>{{ job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                                     <td>
-                                        <a href="{{ url_for('backup.job_detail', job_id=job.id) }}" class="btn btn-sm btn-info">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
+                                        {% if job.completed_at %}
+                                        {{ (job.completed_at - job.timestamp).total_seconds()|round|int }} sec
+                                        {% else %}
+                                        -
+                                        {% endif %}
                                     </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="5" class="text-center">No jobs found for this repository</td>
+                                    <td>
+                                        {% if job.get_metadata() and job.get_metadata().get('original_size') %}
+                                        {{ job.get_metadata().get('original_size') }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.archive_name %}
+                                        {{ job.archive_name }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{{ url_for('backup.job_detail', job_id=job.id) }}"
+                                                class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            {% if job.job_type == 'create' and job.status == 'success' %}
+                                            <a href="{{ url_for('backup.view_archives', repo_id=repo.id) }}"
+                                                class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-folder-open"></i>
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -200,824 +265,71 @@
             </div>
         </div>
     </div>
-    
-    <!-- Analytics Dashboard Row -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card shadow mb-4">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Repository Analytics</h5>
-                    <button id="refreshAnalytics" class="btn btn-sm btn-light">
-                        <i class="fas fa-sync-alt me-1"></i>Refresh
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="analytics-loading" class="text-center py-5">
-                        <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
-                        <p>Loading repository analytics...</p>
-                    </div>
-                    
-                    <div id="analytics-content" class="d-none">
-                        <div class="row mb-4">
-                            <!-- Stats Overview -->
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Space Usage</h6>
-                                        <div class="progress mb-2" style="height: 20px;">
-                                            <div id="space-usage-bar" class="progress-bar bg-info" role="progressbar" 
-                                                 aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
-                                                <span id="usage-text">0% Used</span>
-                                            </div>
-                                        </div>
-                                        <p class="text-center mb-0">
-                                            <span id="current-size">0 GB</span> of <span id="max-size">{{ repo.max_size }} GB</span>
-                                            (<span id="space-usage-percent">0%</span>)
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Estimated Runway</h6>
-                                        <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div class="text-center w-100">
-                                                <h3 id="estimated-runway" class="mb-1">-</h3>
-                                                <p class="mb-0 small" id="runway-label">days remaining</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Average Compression</h6>
-                                        <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div class="text-center w-100">
-                                                <h3 id="avg-compression" class="mb-1">-</h3>
-                                                <p class="mb-0 small">times smaller</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-3">
-                                <div class="card bg-light">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Job Statistics</h6>
-                                        <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div class="text-center w-100">
-                                                <div class="row g-2">
-                                                    <div class="col-4">
-                                                        <div class="border rounded p-2 bg-success text-white">
-                                                            <strong id="successful-jobs" class="d-block">0</strong>
-                                                            <small class="d-block">Success</small>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-4">
-                                                        <div class="border rounded p-2 bg-danger text-white">
-                                                            <strong id="failed-jobs" class="d-block">0</strong>
-                                                            <small class="d-block">Failed</small>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-4">
-                                                        <div class="border rounded p-2 bg-secondary text-white">
-                                                            <strong id="total-jobs" class="d-block">0</strong>
-                                                            <small class="d-block">Total</small>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <!-- Growth Chart -->
-                            <div class="col-md-8">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Repository Size Growth</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-wrapper" id="growth-chart-container">
-                                            <div class="text-center">
-                                                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
-                                                <p>Loading growth chart...</p>
-                                            </div>
-                                        </div>
-                                        <div class="alert alert-info text-center d-none" id="growth-chart-no-data">
-                                            <i class="fas fa-info-circle me-2"></i>
-                                            <span>No size data available yet. Create backups to see repository growth over time.</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Forecast Panel -->
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Growth Forecast</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div id="forecast-content">
-                                            <table class="table table-sm">
-                                                <tr>
-                                                    <th>30 days:</th>
-                                                    <td id="forecast-30">-</td>
-                                                </tr>
-                                                <tr>
-                                                    <th>60 days:</th>
-                                                    <td id="forecast-60">-</td>
-                                                </tr>
-                                                <tr>
-                                                    <th>90 days:</th>
-                                                    <td id="forecast-90">-</td>
-                                                </tr>
-                                            </table>
-                                            <div class="alert alert-info mt-2">
-                                                <small>
-                                                    <i class="fas fa-info-circle me-1"></i>
-                                                    Forecast is based on historical growth patterns and has 
-                                                    <span id="forecast-confidence">medium</span> confidence.
-                                                </small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Second row for additional charts -->
-                        <div class="row mt-4">
-                            <!-- Backup Frequency Chart -->
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Backup Frequency</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-wrapper" id="frequency-chart-container">
-                                            <div class="text-center">
-                                                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
-                                                <p>Loading frequency chart...</p>
-                                            </div>
-                                        </div>
-                                        <div class="alert alert-info text-center d-none" id="frequency-chart-no-data">
-                                            <i class="fas fa-info-circle me-2"></i>
-                                            <span>No backup frequency data available yet. Run more backups to see patterns.</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Backup Success Rate Chart -->
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Backup Success Rate</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-wrapper d-flex align-items-center justify-content-center">
-                                            <div style="width: 200px; height: 200px; position: relative;">
-                                                <canvas id="success-rate-chart"></canvas>
-                                                <div class="position-absolute" style="top: 50%; left: 50%; transform: translate(-50%, -100%); text-align: center;">
-                                                    <h3 class="mb-0" id="success-rate-percentage">-</h3>
-                                                    <small>success rate</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+
+    <!-- Analytics Dashboard Section (included from separate file) -->
+    {% include 'backup/includes/repository_analytics.html' %}
 </div>
 
-<!-- Max Size Modal -->
-<div class="modal fade" id="maxSizeModal" tabindex="-1" aria-labelledby="maxSizeModalLabel" aria-hidden="true">
+<!-- Prune Modal -->
+<div class="modal fade" id="pruneModal" tabindex="-1" aria-labelledby="pruneModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="maxSizeModalLabel">Set Maximum Repository Size</h5>
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title" id="pruneModalLabel">Prune Repository</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="maxSizeForm">
+                <p>Prune will remove archives from the repository according to the specified retention policy.</p>
+
+                <form>
                     <div class="mb-3">
-                        <label for="maxSize" class="form-label">Maximum Size (GB)</label>
-                        <input type="number" class="form-control" id="maxSize" name="maxSize" 
-                               value="{{ repo.max_size }}" min="1" step="1">
-                        <div class="form-text">Set the maximum expected size of this repository for forecasting purposes.</div>
+                        <label for="pruneKeepLast" class="form-label">Keep Last N Archives</label>
+                        <input type="number" class="form-control" id="pruneKeepLast" min="0">
+                        <div class="form-text">Number of most recent archives to keep.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="pruneKeepHourly" class="form-label">Keep Hourly</label>
+                        <input type="number" class="form-control" id="pruneKeepHourly" min="0">
+                        <div class="form-text">Number of hourly archives to keep.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="pruneKeepDaily" class="form-label">Keep Daily</label>
+                        <input type="number" class="form-control" id="pruneKeepDaily" min="0">
+                        <div class="form-text">Number of daily archives to keep.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="pruneKeepWeekly" class="form-label">Keep Weekly</label>
+                        <input type="number" class="form-control" id="pruneKeepWeekly" min="0">
+                        <div class="form-text">Number of weekly archives to keep.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="pruneKeepMonthly" class="form-label">Keep Monthly</label>
+                        <input type="number" class="form-control" id="pruneKeepMonthly" min="0">
+                        <div class="form-text">Number of monthly archives to keep.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="pruneKeepYearly" class="form-label">Keep Yearly</label>
+                        <input type="number" class="form-control" id="pruneKeepYearly" min="0">
+                        <div class="form-text">Number of yearly archives to keep.</div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveMaxSize">Save</button>
+                <form method="POST" action="{{ url_for('backup.prune_repository', repo_id=repo.id) }}">
+                    <button type="button" class="btn btn-warning btn-prune-confirm">Prune Repository</button>
+                </form>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
-{{ super() }}
-<!-- Chart.js is required for all charts on this page -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script>
-    $(document).ready(function() {
-        // Set progress bar using direct DOM manipulation for better compatibility
-        function setProgressBar(id, percent) {
-            const bar = document.getElementById(id);
-            if (bar) {
-                console.log(`Direct DOM setting ${id} width to ${percent}%`);
-                bar.style.width = percent + '%';
-                bar.setAttribute('aria-valuenow', percent);
-            }
-        }
-
-        // Load archives list
-        $('#loadArchives, #refreshArchives').click(function() {
-            $('#archivesList').html('<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Loading archives...</p></div>');
-            
-            $.getJSON("{{ url_for('backup.list_archives', repo_id=repo.id) }}", function(data) {
-                if (data.status === 'running') {
-                    // We got a job ID - start polling for results
-                    pollJobForArchives(data.job_id);
-                } else {
-                    // We got immediate results (legacy mode)
-                    displayArchives(data);
-                }
-            }).fail(function() {
-                showError('Failed to communicate with server');
-            });
-        });
-        
-        // Poll a job for archives data
-        function pollJobForArchives(jobId) {
-            var pollInterval = setInterval(function() {
-                $.getJSON("{{ url_for('backup.api_get_job_status', job_id=0) }}".replace('0', jobId), function(data) {
-                    if (data.status === 'success') {
-                        clearInterval(pollInterval);
-                        
-                        // Get archives from job metadata
-                        if (data.metadata && data.metadata.archives) {
-                            displayArchives(data.metadata.archives);
-                        } else {
-                            showError('No archives found');
-                        }
-                    } else if (data.status === 'failed') {
-                        clearInterval(pollInterval);
-                        showError('Failed to list archives: ' + (data.error || 'Unknown error'));
-                    }
-                    // If still running, continue polling
-                }).fail(function() {
-                    clearInterval(pollInterval);
-                    showError('Failed to get job status');
-                });
-            }, 1000); // Poll every second
-        }
-        
-        // Handle prune form submission
-        $('#pruneForm').submit(function(e) {
-            e.preventDefault();
-            
-            $.ajax({
-                url: $(this).attr('action'),
-                type: 'POST',
-                data: $(this).serialize(),
-                success: function(data) {
-                    if (data.status === 'running') {
-                        window.location.href = "{{ url_for('backup.job_detail', job_id=0) }}".replace('0', data.job_id);
-                    } else {
-                        showError('Failed to start prune job');
-                    }
-                },
-                error: function() {
-                    showError('Failed to communicate with server');
-                }
-            });
-        });
-        
-        // Initialize analytics dashboard
-        loadAnalytics();
-        
-        // Refresh analytics when button is clicked
-        $('#refreshAnalytics').click(function() {
-            loadAnalytics();
-        });
-        
-        // Handle max size update
-        $('#saveMaxSize').click(function() {
-            const maxSize = $('#maxSize').val();
-            if (!maxSize || maxSize < 1) {
-                alert('Please enter a valid maximum size (at least 1 GB)');
-                return;
-            }
-            
-            $.ajax({
-                url: "{{ url_for('backup.update_repository', repo_id=repo.id) }}",
-                type: 'POST',
-                data: {
-                    max_size: maxSize
-                },
-                success: function(data) {
-                    if (data.success) {
-                        $('#maxSizeDisplay').text(maxSize + ' GB');
-                        $('#max-size').text(maxSize + ' GB');
-                        $('#maxSizeModal').modal('hide');
-                        loadAnalytics(); // Reload analytics with new max size
-                    } else {
-                        showError('Failed to update maximum size');
-                    }
-                },
-                error: function() {
-                    showError('Failed to communicate with server');
-                }
-            });
-        });
-        
-        // Display archives from data
-        function displayArchives(archives) {
-            if (!archives || archives.length === 0) {
-                $('#archivesList').html('<div class="alert alert-info">No archives found in this repository.</div>');
-                return;
-            }
-            
-            let html = '<div class="list-group">';
-            
-            for (let archive of archives) {
-                let archiveName = typeof archive === 'string' ? archive : archive.name;
-                let archiveTime = archive.time ? new Date(archive.time).toLocaleString() : 'Unknown';
-                let archiveSize = archive.size ? formatSize(archive.size) : 'Unknown';
-                
-                html += `
-                <div class="list-group-item">
-                    <div class="d-flex w-100 justify-content-between">
-                        <h5 class="mb-1">${archiveName}</h5>
-                        <small>${archiveTime}</small>
-                    </div>
-                    <p class="mb-1">Size: ${archiveSize}</p>
-                    <button class="btn btn-sm btn-info mount-btn" data-archive="${archiveName}">
-                        <i class="fas fa-hdd me-1"></i>Mount
-                    </button>
-                    <button class="btn btn-sm btn-warning extract-btn" data-archive="${archiveName}">
-                        <i class="fas fa-file-export me-1"></i>Extract
-                    </button>
-                </div>`;
-            }
-            
-            html += '</div>';
-            $('#archivesList').html(html);
-        }
-        
-        // Analytics functions
-        function loadAnalytics() {
-            $('#analytics-loading').removeClass('d-none');
-            $('#analytics-content').addClass('d-none');
-            
-            // Load repository statistics
-            $.ajax({
-                url: "{{ url_for('analytics.repository_stats_api', repo_id=repo.id) }}",
-                type: 'GET',
-                dataType: 'json',
-                success: function(stats) {
-                    console.log("Stats loaded successfully:", stats);
-                    console.log("latest_size:", stats.latest_size, "space_usage:", stats.space_usage);
-                    
-                    // Convert any "None" string values to null
-                    Object.keys(stats).forEach(key => {
-                        if (stats[key] === "None") {
-                            stats[key] = null;
-                        }
-                        
-                        // Also check nested objects in size_trend
-                        if (key === 'size_trend' && Array.isArray(stats[key])) {
-                            stats[key].forEach(point => {
-                                Object.keys(point).forEach(pointKey => {
-                                    if (point[pointKey] === "None") {
-                                        point[pointKey] = null;
-                                    }
-                                });
-                            });
-                        }
-                    });
-                    
-                    updateAnalyticsDisplay(stats);
-                    
-                    // Load the growth chart
-                    loadGrowthChart();
-                    
-                    // Load the frequency chart
-                    loadFrequencyChart();
-                    
-                    // Create success rate chart
-                    createSuccessRateChart(stats.successful_jobs, stats.failed_jobs);
-                    
-                    // Also load forecast data
-                    $.ajax({
-                        url: "{{ url_for('analytics.repository_forecast_api', repo_id=repo.id) }}",
-                        type: 'GET',
-                        dataType: 'json',
-                        success: function(forecast) {
-                            console.log("Forecast loaded successfully:", forecast);
-                            
-                            // Convert any "None" string values to null
-                            if (forecast && forecast.forecast_points && Array.isArray(forecast.forecast_points)) {
-                                forecast.forecast_points.forEach(point => {
-                                    Object.keys(point).forEach(key => {
-                                        if (point[key] === "None") {
-                                            point[key] = null;
-                                        }
-                                    });
-                                });
-                            }
-                            
-                            updateForecastDisplay(forecast);
-                        },
-                        error: function(xhr, status, error) {
-                            console.error('Failed to load forecast data:', error);
-                            console.error('Response:', xhr.responseText);
-                            
-                            // Still show analytics without forecast
-                            $('#analytics-loading').addClass('d-none');
-                            $('#analytics-content').removeClass('d-none');
-                        }
-                    });
-                },
-                error: function(xhr, status, error) {
-                    console.error('Failed to load analytics data:', error);
-                    console.error('Response:', xhr.responseText);
-                    
-                    // Show an error message in the analytics section
-                    $('#analytics-loading').addClass('d-none');
-                    $('#analytics-content').removeClass('d-none');
-                    
-                    // Add error alert
-                    $('.card-body', $('#analytics-content').closest('.card')).prepend(
-                        '<div class="alert alert-danger">' +
-                        '<i class="fas fa-exclamation-circle me-2"></i>' +
-                        'Failed to load analytics data: ' + error +
-                        '</div>'
-                    );
-                }
-            });
-        }
-        
-        function loadGrowthChart() {
-            console.log("Loading growth chart...");
-            $.ajax({
-                url: "{{ url_for('analytics.repository_growth_chart', repo_id=repo.id) }}",
-                type: 'GET',
-                dataType: 'json',
-                success: function(response) {
-                    console.log("Growth chart response:", response);
-                    if (response.chart_html) {
-                        // Insert chart HTML
-                        $('#growth-chart-container').html(response.chart_html);
-                        $('#growth-chart-no-data').addClass('d-none');
-                        
-                        // If it's sample data, show a note
-                        if (response.is_sample_data) {
-                            $('#growth-chart-container').append(
-                                '<div class="alert alert-info mt-3 text-center">' +
-                                '<i class="fas fa-info-circle me-2"></i>' +
-                                'No real data available yet. Create backups to see repository growth over time.' +
-                                '</div>'
-                            );
-                        }
-                        
-                        console.log("Growth chart loaded successfully");
-                    } else if (response.error) {
-                        console.error("Error loading growth chart:", response.error);
-                        $('#growth-chart-container').addClass('d-none');
-                        $('#growth-chart-no-data').removeClass('d-none');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Failed to load growth chart:', error);
-                    $('#growth-chart-container').addClass('d-none');
-                    $('#growth-chart-no-data').removeClass('d-none');
-                }
-            });
-        }
-        
-        function loadFrequencyChart() {
-            console.log("Loading frequency chart...");
-            $.ajax({
-                url: "{{ url_for('analytics.repository_frequency_chart', repo_id=repo.id) }}",
-                type: 'GET',
-                dataType: 'json',
-                success: function(response) {
-                    console.log("Frequency chart response:", response);
-                    if (response.chart_html) {
-                        // Insert chart HTML
-                        $('#frequency-chart-container').html(response.chart_html);
-                        $('#frequency-chart-no-data').addClass('d-none');
-                        
-                        // If it's sample data, show a note
-                        if (response.is_sample_data) {
-                            $('#frequency-chart-container').append(
-                                '<div class="alert alert-info mt-3 text-center">' +
-                                '<i class="fas fa-info-circle me-2"></i>' +
-                                'No backup frequency data available yet. Run more backups to see patterns.' +
-                                '</div>'
-                            );
-                        }
-                        
-                        console.log("Frequency chart loaded successfully");
-                    } else if (response.error) {
-                        console.error("Error loading frequency chart:", response.error);
-                        $('#frequency-chart-container').addClass('d-none');
-                        $('#frequency-chart-no-data').removeClass('d-none');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Failed to load frequency chart:', error);
-                    $('#frequency-chart-container').addClass('d-none');
-                    $('#frequency-chart-no-data').removeClass('d-none');
-                }
-            });
-        }
-        
-        function createSuccessRateChart(successCount, failedCount) {
-            const ctx = document.getElementById('success-rate-chart').getContext('2d');
-            
-            // Calculate percentage
-            const total = successCount + failedCount;
-            const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
-            
-            // Update the percentage display
-            $('#success-rate-percentage').text(successRate + '%');
-            
-            // Create doughnut chart
-            new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Success', 'Failed'],
-                    datasets: [{
-                        data: [successCount || 1, failedCount || 0],  // Use at least 1 for success if there's no data
-                        backgroundColor: ['rgba(40, 167, 69, 0.7)', 'rgba(220, 53, 69, 0.7)'],
-                        borderColor: ['rgba(40, 167, 69, 1)', 'rgba(220, 53, 69, 1)'],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    cutout: '70%',
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'bottom'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.raw || 0;
-                                    const percentage = total > 0 
-                                        ? Math.round((value / total) * 100) 
-                                        : (context.dataIndex === 0 ? 100 : 0); // 100% success if no data
-                                    return `${label}: ${value} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // If there's no data, show a note
-            if (total === 0) {
-                // Add a note below the chart
-                $(ctx.canvas).parent().after(
-                    '<div class="alert alert-info mt-3 text-center">' +
-                    '<i class="fas fa-info-circle me-2"></i>' +
-                    'No backup jobs have been run yet.' +
-                    '</div>'
-                );
-            }
-        }
-        
-        function updateAnalyticsDisplay(stats) {
-            // Debug log to see what's coming from the API
-            console.log("Received stats from API:", stats);
-            console.log("Estimated runway value:", stats.estimated_runway);
-            
-            // Update space usage
-            if (stats.latest_size !== null && stats.latest_size !== undefined) {
-                const usagePercent = stats.space_usage !== null && stats.space_usage !== undefined ? stats.space_usage : 0;
-                console.log("Setting space usage bar width to " + usagePercent + "%");
-                
-                // Ensure we have a valid percentage (should be between 0-100)
-                const validPercent = Math.min(Math.max(0, usagePercent), 100);
-                const roundedPercent = Math.round(validPercent * 10) / 10; // Round to 1 decimal place
-                
-                // Try multiple approaches to set the progress bar
-                // 1. Standard jQuery CSS
-                $('#space-usage-bar').css('width', validPercent + '%');
-                
-                // 2. Update the aria values as well
-                $('#space-usage-bar').attr('aria-valuenow', validPercent);
-                
-                // 3. Update the text display of the percentage
-                $('#space-usage-percent').text(roundedPercent + '%');
-                
-                // 4. Also try with .width() method
-                $('#space-usage-bar').width(validPercent + '%');
-                
-                // 2. Direct DOM manipulation
-                setProgressBar('space-usage-bar', validPercent);
-                
-                // 3. Delayed update with !important flag
-                setTimeout(function() {
-                    console.log("Delayed setting bar width to " + validPercent + "%");
-                    // Apply width with important flag to override any conflicting styles
-                    $('#space-usage-bar').attr('style', 'width: ' + validPercent + '% !important');
-                    
-                    // Update ARIA attributes
-                    $('#space-usage-bar').attr('aria-valuenow', validPercent);
-                    $('#usage-text').text(roundedPercent.toFixed(1) + '% Used');
-                    console.log("Updated usage-text to: " + roundedPercent.toFixed(1) + '% Used');
-                }, 100);
-                
-                $('#current-size').text((stats.latest_size).toFixed(2) + ' GB');
-                
-                // Color coding for usage
-                if (validPercent > 90) {
-                    $('#space-usage-bar').removeClass('bg-info bg-warning').addClass('bg-danger');
-                } else if (validPercent > 70) {
-                    $('#space-usage-bar').removeClass('bg-info bg-danger').addClass('bg-warning');
-                } else {
-                    $('#space-usage-bar').removeClass('bg-warning bg-danger').addClass('bg-info');
-                }
-            } else {
-                console.log("No latest_size data available");
-                // Set a default value
-                $('#space-usage-bar').css('width', '10%');
-                $('#current-size').text('0.00 GB');
-            }
-            
-            // Update runway estimate
-            console.log("Estimated runway value from API:", stats.estimated_runway);
-            
-            if (stats.estimated_runway !== null && stats.estimated_runway !== undefined) {
-                // Remove any existing colors first
-                $('#estimated-runway').removeClass('text-danger text-warning text-success');
-                
-                // Format the runway value appropriately
-                let runwayValue = parseInt(stats.estimated_runway);
-                console.log("Parsed runway value:", runwayValue);
-                
-                // Handle zero values specifically
-                if (runwayValue === 0) {
-                    console.log("Runway value is zero, using default value");
-                    runwayValue = 365; // Default to 1 year
-                }
-                
-                // Color coding for runway
-                if (runwayValue < 30) {
-                    $('#estimated-runway').addClass('text-danger');
-                    $('#estimated-runway').text(runwayValue);
-                    $('#runway-label').text('days remaining');
-                } else if (runwayValue < 90) {
-                    $('#estimated-runway').addClass('text-warning');
-                    $('#estimated-runway').text(runwayValue);
-                    $('#runway-label').text('days remaining');
-                } else if (runwayValue < 365) {
-                    // Between 3 months and 1 year - show in months
-                    $('#estimated-runway').addClass('text-success');
-                    let months = Math.round(runwayValue / 30);
-                    $('#estimated-runway').text(months);
-                    $('#runway-label').text('months remaining');
-                } else if (runwayValue < 730) {
-                    // Between 1-2 years - show as a year plus months
-                    $('#estimated-runway').addClass('text-success');
-                    let remainingMonths = Math.round((runwayValue - 365) / 30);
-                    if (remainingMonths > 0) {
-                        $('#estimated-runway').text('1+');
-                        $('#runway-label').text('years remaining');
-                    } else {
-                        $('#estimated-runway').text('1');
-                        $('#runway-label').text('year remaining');
-                    }
-                } else {
-                    // More than 2 years - round to years
-                    $('#estimated-runway').addClass('text-success');
-                    let years = Math.round(runwayValue / 365);
-                    $('#estimated-runway').text(years);
-                    $('#runway-label').text('years remaining');
-                }
-            }
-            
-            // Update compression ratio
-            if (stats.avg_compression_ratio) {
-                $('#avg-compression').text(stats.avg_compression_ratio.toFixed(2) + 'x');
-            }
-            
-            // Update job statistics
-            $('#total-jobs').text(stats.total_jobs || 0);
-            $('#successful-jobs').text(stats.successful_jobs || 0);
-            $('#failed-jobs').text(stats.failed_jobs || 0);
-            
-            // Show the analytics content
-            $('#analytics-loading').addClass('d-none');
-            $('#analytics-content').removeClass('d-none');
-        }
-        
-        function updateForecastDisplay(forecast) {
-            if (!forecast || !forecast.forecast_points || forecast.forecast_points.length === 0) {
-                console.log("No forecast data available");
-                return;
-            }
-            
-            console.log("Processing forecast data:", forecast);
-            
-            // Find the forecast points for 30, 60, and 90 days
-            const points = forecast.forecast_points;
-            
-            // Convert first date string to Date object
-            const firstDate = new Date(points[0].timestamp);
-            
-            // Find points closest to 30, 60, and 90 days
-            const point30 = points.find(p => {
-                const pointDate = new Date(p.timestamp);
-                const diffDays = (pointDate - firstDate) / (1000 * 60 * 60 * 24);
-                return diffDays >= 30 && diffDays < 40;
-            });
-            
-            const point60 = points.find(p => {
-                const pointDate = new Date(p.timestamp);
-                const diffDays = (pointDate - firstDate) / (1000 * 60 * 60 * 24);
-                return diffDays >= 60 && diffDays < 70;
-            });
-            
-            const point90 = points.find(p => {
-                const pointDate = new Date(p.timestamp);
-                const diffDays = (pointDate - firstDate) / (1000 * 60 * 60 * 24);
-                return diffDays >= 90;
-            });
-            
-            console.log("Forecast points:", {point30, point60, point90});
-            
-            // Update forecast displays
-            if (point30 && point30.size_gb !== null && point30.size_gb !== undefined) {
-                $('#forecast-30').text(point30.size_gb.toFixed(2) + ' GB');
-            }
-            if (point60 && point60.size_gb !== null && point60.size_gb !== undefined) {
-                $('#forecast-60').text(point60.size_gb.toFixed(2) + ' GB');
-            }
-            if (point90 && point90.size_gb !== null && point90.size_gb !== undefined) {
-                $('#forecast-90').text(point90.size_gb.toFixed(2) + ' GB');
-            }
-            
-            // Update confidence text
-            let confidenceText = 'medium';
-            if (forecast.forecast_confidence >= 0.8) {
-                confidenceText = 'high';
-            } else if (forecast.forecast_confidence < 0.5) {
-                confidenceText = 'low';
-            }
-            $('#forecast-confidence').text(confidenceText);
-        }
-        
-        // Utility functions
-        function formatSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-        
-        function showError(message) {
-            const errorHtml = `
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-circle me-2"></i>${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>`;
-            
-            $('#archivesList').html(errorHtml);
-        }
-    });
-</script>
-
-<!-- Delete Confirmation Modal -->
+<!-- Delete Repository Modal -->
 <div class="modal fade" id="deleteRepoModal" tabindex="-1" aria-labelledby="deleteRepoModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -1027,7 +339,8 @@
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete the repository "{{ repo.name }}"?</p>
-                <p><strong>Warning:</strong> This will only remove the repository from Citadel. The actual data on disk will not be deleted.</p>
+                <p><strong>Warning:</strong> This will only remove the repository from the database. The actual data on
+                    disk will not be deleted.</p>
                 <p>All associated jobs and schedules will be deleted from the database.</p>
             </div>
             <div class="modal-footer">
@@ -1039,4 +352,57 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<!-- Include Chart.js library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<!-- Define API URLs for the analytics scripts -->
+<script>
+    // Define the repository ID and API URLs for analytics
+    const repoId = "{{ repo.id }}";
+    const repoStatsApiUrl = "{{ url_for('backup.api_repository_stats', repo_id=repo.id) }}";
+    const repoForecastApiUrl = "{{ url_for('backup.api_repository_forecast', repo_id=repo.id) }}";
+    const repoGrowthChartUrl = "{{ url_for('backup.api_repository_growth_chart', repo_id=repo.id) }}";
+    const repoFrequencyChartUrl = "{{ url_for('backup.api_repository_frequency_chart', repo_id=repo.id) }}";
+</script>
+
+<!-- Include repository analytics script -->
+<script src="{{ url_for('static', filename='js/repository-analytics.js') }}"></script>
+
+<!-- Maintenance script for repository operations -->
+<script>
+    $(document).ready(function () {
+        // Click handler for prune confirmation
+        $('.btn-prune-confirm').on('click', function () {
+            const modal = $('#pruneModal');
+            const pruneBtn = modal.find('.btn-prune');
+            const pruneForm = modal.find('form');
+            const keepLast = modal.find('#pruneKeepLast').val();
+            const keepHourly = modal.find('#pruneKeepHourly').val();
+            const keepDaily = modal.find('#pruneKeepDaily').val();
+            const keepWeekly = modal.find('#pruneKeepWeekly').val();
+            const keepMonthly = modal.find('#pruneKeepMonthly').val();
+            const keepYearly = modal.find('#pruneKeepYearly').val();
+
+            // Build the query string
+            const params = new URLSearchParams();
+            if (keepLast) params.append('keep-last', keepLast);
+            if (keepHourly) params.append('keep-hourly', keepHourly);
+            if (keepDaily) params.append('keep-daily', keepDaily);
+            if (keepWeekly) params.append('keep-weekly', keepWeekly);
+            if (keepMonthly) params.append('keep-monthly', keepMonthly);
+            if (keepYearly) params.append('keep-yearly', keepYearly);
+
+            // Update the form action URL with the parameters
+            const baseUrl = pruneForm.attr('action').split('?')[0];
+            pruneForm.attr('action', `${baseUrl}?${params.toString()}`);
+
+            // Submit the form
+            pruneForm.submit();
+        });
+    });
+</script>
 {% endblock %}

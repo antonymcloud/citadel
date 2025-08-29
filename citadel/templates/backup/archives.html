@@ -1,0 +1,415 @@
+{% extends "common/base.html" %}
+
+{% block title %}Repository Archives - Citadel{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .table-archives th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 1;
+    }
+    .archive-size {
+        white-space: nowrap;
+    }
+    .archive-time {
+        white-space: nowrap;
+    }
+    .archive-comment {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        z-index: 1000;
+    }
+    .table-responsive {
+        position: relative;
+        min-height: 200px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-archive me-2"></i>Archives for {{ repo.name }}</h1>
+        <div class="btn-group">
+            <button id="refreshArchives" class="btn btn-primary">
+                <i class="fas fa-sync-alt me-2"></i>Refresh Archives
+            </button>
+            <a href="{{ url_for('backup.create_backup') }}?repo_id={{ repo.id }}" class="btn btn-success">
+                <i class="fas fa-plus-circle me-2"></i>Create Backup
+            </a>
+            <a href="{{ url_for('backup.repository_detail', repo_id=repo.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Repository
+            </a>
+        </div>
+    </div>
+    
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Repository Archives</h5>
+                {% if list_job %}
+                <small class="text-white-50">Last updated: {{ list_job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive" id="archivesTableContainer">
+                {% if archives %}
+                <table class="table table-hover table-archives" id="archivesTable">
+                    <thead>
+                        <tr>
+                            <th>Archive Name</th>
+                            <th>Created</th>
+                            <th>Size</th>
+                            <th>Comment</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivesList">
+                        {% for archive in archives %}
+                        <tr>
+                            <td>{{ archive.name }}</td>
+                            <td class="archive-time">
+                                {% if archive.time %}
+                                {{ archive.time|datetime }}
+                                {% else %}
+                                Unknown
+                                {% endif %}
+                            </td>
+                            <td class="archive-size">
+                                {% if archive.size %}
+                                {{ archive.size|filesize }}
+                                {% else %}
+                                Unknown
+                                {% endif %}
+                            </td>
+                            <td class="archive-comment">{{ archive.comment|default('No comment') }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-info view-archive" data-archive="{{ archive.name }}">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                    <button class="btn btn-warning extract-archive" data-archive="{{ archive.name }}">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button class="btn btn-danger delete-archive" data-archive="{{ archive.name }}">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center p-4" id="archivesList">
+                    <p class="text-muted">No archives found. Click "Refresh Archives" to check for archives.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Archive Detail Modal -->
+<div class="modal fade" id="archiveDetailModal" tabindex="-1" aria-labelledby="archiveDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="archiveDetailModalLabel">Archive Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="archiveDetailContent">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading archive details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Extract Archive Modal -->
+<div class="modal fade" id="extractArchiveModal" tabindex="-1" aria-labelledby="extractArchiveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="extractArchiveModalLabel">Extract Archive</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="extractForm">
+                    <input type="hidden" id="extractArchiveName" name="archive_name">
+                    <div class="mb-3">
+                        <label for="extractPath" class="form-label">Destination Path</label>
+                        <input type="text" class="form-control" id="extractPath" name="extract_path" required>
+                        <div class="form-text">Path where files will be extracted</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="extractAll" name="extract_all">
+                            <label class="form-check-label" for="extractAll">
+                                Extract all files
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="extractPathsGroup">
+                        <label for="extractPaths" class="form-label">Files/Directories to Extract (one per line)</label>
+                        <textarea class="form-control" id="extractPaths" name="extract_paths" rows="3"></textarea>
+                        <div class="form-text">Leave empty to extract all files</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="startExtract">Extract</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Archive Confirmation Modal -->
+<div class="modal fade" id="deleteArchiveModal" tabindex="-1" aria-labelledby="deleteArchiveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteArchiveModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete archive <strong id="deleteArchiveName"></strong>?</p>
+                <p><strong>Warning:</strong> This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    $(document).ready(function() {
+        // Format file sizes
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Format dates
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+        
+        // Display archives in the table
+        function displayArchives(archives) {
+            if (!archives || archives.length === 0) {
+                $('#archivesList').html('<tr><td colspan="5" class="text-center">No archives found</td></tr>');
+                return;
+            }
+            
+            let html = '';
+            archives.forEach(function(archive) {
+                html += `
+                <tr>
+                    <td>${archive.name}</td>
+                    <td class="archive-time">${archive.time ? formatDate(archive.time) : 'Unknown'}</td>
+                    <td class="archive-size">${archive.size ? formatFileSize(archive.size) : 'Unknown'}</td>
+                    <td class="archive-comment">${archive.comment || 'No comment'}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-info view-archive" data-archive="${archive.name}">
+                                <i class="fas fa-search"></i>
+                            </button>
+                            <button class="btn btn-warning extract-archive" data-archive="${archive.name}">
+                                <i class="fas fa-download"></i>
+                            </button>
+                            <button class="btn btn-danger delete-archive" data-archive="${archive.name}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            });
+            
+            $('#archivesList').html(html);
+        }
+        
+        // Show error message
+        function showError(message) {
+            $('#archivesList').html(`
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>${message}
+                    </td>
+                </tr>
+            `);
+        }
+        
+        // Poll a job for archives data
+        function pollJobForArchives(jobId) {
+            // Add loading overlay
+            $('#archivesTableContainer').append(`
+                <div class="loading-overlay">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading archives...</p>
+                </div>
+            `);
+            
+            var pollInterval = setInterval(function() {
+                $.getJSON("{{ url_for('backup.api_get_job_status', job_id=0) }}".replace('0', jobId), function(data) {
+                    if (data.status === 'success') {
+                        clearInterval(pollInterval);
+                        $('.loading-overlay').remove();
+                        
+                        // Get archives from job metadata
+                        if (data.metadata && data.metadata.archives) {
+                            displayArchives(data.metadata.archives);
+                        } else {
+                            showError('No archives found');
+                        }
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        $('.loading-overlay').remove();
+                        showError('Failed to list archives: ' + (data.error || 'Unknown error'));
+                    }
+                    // If still running, continue polling
+                }).fail(function() {
+                    clearInterval(pollInterval);
+                    $('.loading-overlay').remove();
+                    showError('Failed to get job status');
+                });
+            }, 1000); // Poll every second
+        }
+        
+        // Refresh archives list
+        $('#refreshArchives').click(function() {
+            $.getJSON("{{ url_for('backup.list_archives', repo_id=repo.id) }}", function(data) {
+                if (data.status === 'running') {
+                    // We got a job ID - start polling for results
+                    pollJobForArchives(data.job_id);
+                } else {
+                    // We got immediate results (legacy mode)
+                    displayArchives(data);
+                }
+            }).fail(function() {
+                showError('Failed to communicate with server');
+            });
+        });
+        
+        // Handle archive view button clicks
+        $(document).on('click', '.view-archive', function() {
+            const archiveName = $(this).data('archive');
+            $('#archiveDetailModalLabel').text('Archive: ' + archiveName);
+            $('#archiveDetailModal').modal('show');
+            
+            // Load archive details here
+            $('#archiveDetailContent').html(`
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading archive details...</p>
+                </div>
+            `);
+            
+            // TODO: Implement API endpoint to get archive details
+            // For now, just show a placeholder
+            setTimeout(function() {
+                $('#archiveDetailContent').html(`
+                    <div class="alert alert-info">
+                        <p>Archive detail functionality will be implemented in a future update.</p>
+                    </div>
+                `);
+            }, 1000);
+        });
+        
+        // Handle extract archive button clicks
+        $(document).on('click', '.extract-archive', function() {
+            const archiveName = $(this).data('archive');
+            $('#extractArchiveModalLabel').text('Extract: ' + archiveName);
+            $('#extractArchiveName').val(archiveName);
+            $('#extractArchiveModal').modal('show');
+        });
+        
+        // Toggle extract paths textarea based on "Extract all" checkbox
+        $('#extractAll').change(function() {
+            if ($(this).is(':checked')) {
+                $('#extractPathsGroup').hide();
+            } else {
+                $('#extractPathsGroup').show();
+            }
+        });
+        
+        // Handle delete archive button clicks
+        $(document).on('click', '.delete-archive', function() {
+            const archiveName = $(this).data('archive');
+            $('#deleteArchiveName').text(archiveName);
+            $('#deleteArchiveModal').modal('show');
+            
+            // Store the archive name for the confirmation button
+            $('#confirmDelete').data('archive', archiveName);
+        });
+        
+        // Handle delete confirmation
+        $('#confirmDelete').click(function() {
+            const archiveName = $(this).data('archive');
+            
+            // TODO: Implement API endpoint to delete archive
+            // For now, just show a placeholder alert
+            alert('Delete functionality will be implemented in a future update.');
+            $('#deleteArchiveModal').modal('hide');
+        });
+        
+        // Handle extract submission
+        $('#startExtract').click(function() {
+            // TODO: Implement API endpoint to extract archive
+            // For now, just show a placeholder alert
+            alert('Extract functionality will be implemented in a future update.');
+            $('#extractArchiveModal').modal('hide');
+        });
+        
+        // Initialize DataTable if available
+        if ($.fn.DataTable) {
+            $('#archivesTable').DataTable({
+                "order": [[1, "desc"]], // Sort by date descending
+                "pageLength": 25,
+                "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]]
+            });
+        }
+    });
+</script>
+{% endblock %}

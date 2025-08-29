@@ -102,6 +102,35 @@ def create_app(config=None):
     def internal_server_error(e):
         return render_template('errors/500.html'), 500
     
+    # Register template filters
+    @app.template_filter('filesize')
+    def filesize_filter(size):
+        """Format size in bytes to human-readable format"""
+        if size is None:
+            return "Unknown"
+        
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size < 1024.0:
+                return f"{size:.2f} {unit}"
+            size /= 1024.0
+        return f"{size:.2f} PB"
+    
+    @app.template_filter('datetime')
+    def datetime_filter(dt_str):
+        """Format datetime string to human-readable format"""
+        from datetime import datetime
+        if not dt_str:
+            return "Unknown"
+        
+        try:
+            if isinstance(dt_str, str):
+                dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+            else:
+                dt = dt_str
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            return dt_str
+    
     # Index route
     @app.route('/')
     def index():

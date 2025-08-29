@@ -169,8 +169,8 @@
         <div class="container-fluid p-0">
             <!-- Absolutely positioned logo that won't move -->
             <div class="navbar-brand-container">
-                <a class="navbar-brand" href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('index') }}" style="color: #90ee90;">
-                    <img src="{{ url_for('static', filename='tower.svg') }}" height="25px" width="25px" style="stroke-width: 3px !important;" class="me-2" />
+                <a class="navbar-brand" href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('index') }}" style="color: rgb(144, 238, 144);">
+                    <img src="{{ url_for('static', filename='citadel.svg') }}" height="25px" width="25px" style="stroke-width: 3px !important;" class="me-2" />
                     <span>Citadel</span>
                 </a>
             </div>
