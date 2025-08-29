@@ -6,7 +6,7 @@ import threading
 import json
 import shutil
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from citadel.models import db
 from citadel.models.job import Job
@@ -200,8 +200,40 @@ def extract_stats_from_output(output):
     
     return stats
 
+def extract_size_bytes(size_str):
+    """Extract bytes from a size string like '1.23 GB'"""
+    if not size_str or not isinstance(size_str, str):
+        return 0
+        
+    parts = size_str.split()
+    if len(parts) != 2:
+        return 0
+        
+    try:
+        value = float(parts[0])
+        unit = parts[1].upper()
+        
+        # Convert to bytes based on unit
+        if unit == 'B':
+            return value
+        elif unit == 'KB':
+            return value * 1024
+        elif unit == 'MB':
+            return value * 1024 * 1024
+        elif unit == 'GB':
+            return value * 1024 * 1024 * 1024
+        elif unit == 'TB':
+            return value * 1024 * 1024 * 1024 * 1024
+        else:
+            return 0
+    except (ValueError, IndexError):
+        return 0
+
 def parse_size(size_str):
     """Parse a size string like '1.23 GB' to bytes"""
+    if not size_str or not isinstance(size_str, str):
+        return 0
+        
     size_str = size_str.strip()
     if size_str.endswith('B)'):
         size_str = size_str[:-1]  # Remove closing parenthesis
@@ -228,6 +260,67 @@ def parse_size(size_str):
         return int(value * 1024 * 1024 * 1024 * 1024)
     else:
         raise ValueError(f"Unknown unit: {unit}")
+        
+def format_size(size_bytes):
+    """Format a size in bytes to a human-readable string"""
+    if size_bytes is None:
+        return "0 B"
+    
+    if not isinstance(size_bytes, (int, float)):
+        try:
+            size_bytes = float(size_bytes)
+        except (ValueError, TypeError):
+            return "Unknown"
+    
+    if size_bytes == 0:
+        return "0 B"
+    
+    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    i = 0
+    while size_bytes >= 1024 and i < len(units) - 1:
+        size_bytes /= 1024
+        i += 1
+    
+    return f"{size_bytes:.2f} {units[i]}"
+
+def normalize_archive_data(archives):
+    """Normalize archive data to ensure consistent format and fill missing fields"""
+    normalized_archives = []
+    
+    for archive in archives:
+        # Create a copy to avoid modifying the original
+        norm_archive = dict(archive)
+        
+        # Ensure the archive has required fields
+        if 'name' not in norm_archive or not norm_archive['name']:
+            norm_archive['name'] = "Unnamed Archive"
+        
+        # Normalize time field
+        if 'time' not in norm_archive or not norm_archive['time']:
+            norm_archive['time'] = datetime.utcnow().isoformat()
+        elif isinstance(norm_archive['time'], datetime):
+            norm_archive['time'] = norm_archive['time'].isoformat()
+        
+        # Normalize size field
+        if 'size' not in norm_archive or norm_archive['size'] is None:
+            norm_archive['size'] = 0
+        elif isinstance(norm_archive['size'], str):
+            try:
+                # Try to parse if it's a string with units like "5.00 GB"
+                norm_archive['size'] = parse_size(norm_archive['size'])
+            except (ValueError, TypeError):
+                norm_archive['size'] = 0
+        
+        # Format size for display
+        norm_archive['size_formatted'] = format_size(norm_archive['size'])
+        
+        # Ensure comment field exists
+        if 'comment' not in norm_archive:
+            norm_archive['comment'] = ""
+        
+        normalized_archives.append(norm_archive)
+    
+    return normalized_archives
 
 def run_backup_job(job_id):
     """Run a backup job in a separate thread"""
@@ -343,25 +436,30 @@ def _run_backup_job_thread(job_id, app):
                     """
                     exit_code = 0
                 elif job.job_type == 'list':
-                    output = json.dumps({
-                        "archives": [
-                            {
-                                "name": "backup-2023-06-15_120000",
-                                "time": "2023-06-15T12:00:00",
-                                "size": 1024 * 1024 * 500  # 500MB
-                            },
-                            {
-                                "name": "backup-2023-06-14_120000",
-                                "time": "2023-06-14T12:00:00",
-                                "size": 1024 * 1024 * 480  # 480MB
-                            },
-                            {
-                                "name": "backup-2023-06-13_120000",
-                                "time": "2023-06-13T12:00:00",
-                                "size": 1024 * 1024 * 460  # 460MB
-                            }
-                        ]
-                    })
+                    # Enhanced mock data with more complete archive information
+                    current_date = datetime.utcnow()
+                    archives = []
+                    
+                    # Generate 10 mock archives with different dates
+                    for i in range(10):
+                        archive_date = current_date - timedelta(days=i)
+                        archive_name = f"backup-{archive_date.strftime('%Y-%m-%d_%H%M%S')}"
+                        
+                        # Vary sizes to show growth over time
+                        size_mb = 500 - (i * 20)  # Decreasing size as we go back in time
+                        
+                        archives.append({
+                            "name": archive_name,
+                            "time": archive_date.isoformat(),
+                            "size": 1024 * 1024 * size_mb,  # Convert MB to bytes
+                            "comment": f"Daily backup {i+1}" if i < 5 else f"Weekly backup {i-4}",
+                            "hostname": "mock-server",
+                            "username": "mockuser",
+                            "id": f"mock-id-{i}",
+                            "command_line": ["borg", "create", "--stats", repository.path],
+                        })
+                    
+                    output = json.dumps({"archives": archives})
                     exit_code = 0
                 elif job.job_type == 'prune':
                     output = """
@@ -447,8 +545,12 @@ def _run_backup_job_thread(job_id, app):
                                     except json.JSONDecodeError:
                                         continue
                         
-                        metadata = {'archives': archives}
+                        # Normalize archive data
+                        normalized_archives = normalize_archive_data(archives)
+                        
+                        metadata = {'archives': normalized_archives}
                         job.set_metadata(metadata)
+                        print(f"DEBUG: Set job metadata with {len(normalized_archives)} normalized archives")
                     except Exception as e:
                         # Log the error but don't fail the job
                         print(f"Error parsing list output: {str(e)}")

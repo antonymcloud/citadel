@@ -783,6 +783,74 @@ def api_repository_growth_chart(repo_id):
         },
         'is_sample_data': False
     })
+            },
+            'chart_html': generateSampleGrowthChart()  # Fallback for older clients
+        })
+    
+    # Extract size data from jobs
+    size_data = []
+    dates = []
+    sizes = []
+    labels = []
+    
+    for job in backup_jobs:
+        if job.get_metadata():
+            metadata = job.get_metadata()
+            size_value = metadata.get('deduplicated_size')
+            if size_value:
+                # Process size string to extract numeric value
+                size_numeric = None
+                if isinstance(size_value, str):
+                    size_parts = size_value.strip().split(' ')
+                    if len(size_parts) == 2:
+                        try:
+                            size_numeric = float(size_parts[0])
+                            # Normalize to GB for consistency
+                            if size_parts[1].upper() == 'TB':
+                                size_numeric *= 1024
+                            elif size_parts[1].upper() == 'MB':
+                                size_numeric /= 1024
+                            elif size_parts[1].upper() == 'KB':
+                                size_numeric /= (1024 * 1024)
+                            elif size_parts[1].upper() == 'B':
+                                size_numeric /= (1024 * 1024 * 1024)
+                        except (ValueError, TypeError):
+                            size_numeric = None
+                
+                # Add to data points
+                date_str = job.timestamp.strftime('%Y-%m-%d %H:%M')
+                label = job.archive_name or f"Backup {job.id}"
+                
+                size_data.append({
+                    'date': date_str,
+                    'size': size_value,
+                    'label': label
+                })
+                
+                # Only add to chart data if we have a numeric value
+                if size_numeric is not None:
+                    dates.append(date_str)
+                    sizes.append(size_numeric)
+                    labels.append(label)
+    
+    # If we don't have enough valid data points, return sample
+    if len(size_data) < 2 or len(dates) < 2:
+        return jsonify({
+            'is_sample_data': True,
+            'chart_html': generateSampleGrowthChart()
+        })
+    
+    # Return the data for chart generation
+    return jsonify({
+        'is_sample_data': False,
+        'chart_data': size_data,  # For backward compatibility
+        'growth_data': {
+            'labels': dates,
+            'data': sizes,
+            'tooltips': labels
+        },
+        'chart_html': generateGrowthChartHtml(size_data)  # Fallback for older clients
+    })
 
 @backup_bp.route('/api/repository/<int:repo_id>/frequency-chart')
 @login_required

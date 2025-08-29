@@ -93,7 +93,9 @@
                                 {% endif %}
                             </td>
                             <td class="archive-size">
-                                {% if archive.size %}
+                                {% if archive.size_formatted %}
+                                {{ archive.size_formatted }}
+                                {% elif archive.size %}
                                 {{ archive.size|filesize }}
                                 {% else %}
                                 Unknown
@@ -119,7 +121,17 @@
                 </table>
                 {% else %}
                 <div class="text-center p-4" id="archivesList">
-                    <p class="text-muted">No archives found. Click "Refresh Archives" to check for archives.</p>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>No archives found.</strong> 
+                        <p>This could be because:</p>
+                        <ul class="text-start">
+                            <li>No backups have been created yet for this repository</li>
+                            <li>The repository path might be incorrect</li>
+                            <li>There was an error accessing the repository</li>
+                        </ul>
+                        <p>Click "Refresh Archives" to check for archives or "Create Backup" to make your first backup.</p>
+                    </div>
                 </div>
                 {% endif %}
             </div>
