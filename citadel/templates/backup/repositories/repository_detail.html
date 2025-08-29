@@ -71,6 +71,14 @@
                     <hr class="dropdown-divider">
                 </li>
                 <li>
+                    <a class="dropdown-item" href="{{ url_for('backup.edit_repository', repo_id=repo.id) }}">
+                        <i class="fas fa-pen-to-square me-2"></i>Edit Repository
+                    </a>
+                </li>
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
+                <li>
                     <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#pruneModal">
                         <i class="fas fa-broom me-2"></i>Prune Repository
                     </a>
@@ -267,7 +275,7 @@
     </div>
 
     <!-- Analytics Dashboard Section (included from separate file) -->
-    {% include 'backup/includes/repository_analytics.html' %}
+    {% include 'backup/repositories/includes/repository_analytics.html' %}
 </div>
 
 <!-- Prune Modal -->

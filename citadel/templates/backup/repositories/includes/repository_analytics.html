@@ -5,32 +5,42 @@
         padding: 1rem;
         text-align: center;
         max-width: 100%;
-        height: 100% !important;
-        overflow: hidden;
+        /* Use min-height instead of height: 100% */
+        min-height: 350px;
+        /* Cap the maximum height to prevent infinite expansion */
+        max-height: 500px;
+        overflow: auto; /* Changed from hidden to auto to allow scrolling if needed */
     }
+
     .progress-label {
         position: absolute;
         right: 15px;
         font-weight: bold;
     }
+
     .forecast-label {
         font-size: 0.8rem;
         color: #6c757d;
     }
+
     .chart-wrapper {
         width: 100%;
+        /* Set fixed height */
         height: 300px;
         position: relative;
         overflow: hidden;
+    }
+    
+    /* Ensure canvas elements maintain proper sizing */
+    canvas {
+        max-width: 100%;
+        max-height: 100%;
     }
 </style>
 
 <div class="card shadow mt-4">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Repository Analytics</h5>
-        <button id="refreshAnalytics" class="btn btn-sm btn-light">
-            <i class="fas fa-sync-alt me-1"></i>Refresh
-        </button>
     </div>
     <div class="card-body">
         <div id="analytics-loading" class="text-center py-5">
@@ -54,7 +64,8 @@
                             <h6 class="text-muted">Space Usage</h6>
                             <h3 id="space-usage">-</h3>
                             <div class="progress">
-                                <div class="progress-bar" id="usage-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                <div class="progress-bar" id="usage-bar" role="progressbar" style="width: 0%;"
+                                    aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                             </div>
                         </div>
                     </div>
@@ -76,7 +87,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Repository Growth and Backup Statistics -->
             <div class="row mb-4">
                 <div class="col-md-6">
@@ -86,6 +97,7 @@
                         </div>
                         <div class="card-body chart-container">
                             <div class="chart-wrapper" id="growth-chart-container">
+                                <canvas id="growth-chart"></canvas>
                                 <div class="text-center py-5">
                                     <div class="spinner-border text-primary" role="status"></div>
                                     <p>Loading growth chart...</p>
@@ -137,7 +149,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Second row for additional charts -->
             <div class="row">
                 <!-- Backup Frequency Chart -->
@@ -147,19 +159,17 @@
                             <h6 class="mb-0">Backup Frequency</h6>
                         </div>
                         <div class="card-body chart-container">
-                            <div class="chart-wrapper" id="frequency-chart-container">
-                                <div class="text-center py-5">
-                                    <div class="spinner-border text-primary" role="status"></div>
-                                    <p>Loading frequency chart...</p>
-                                </div>
+                            <div id="day-frequency-chart-wrapper" class="chart-wrapper">
+                                <canvas id="day-frequency-chart"></canvas>
                             </div>
+
                             <div class="alert alert-info text-center d-none" id="frequency-chart-no-data">
                                 <i class="fas fa-info-circle me-2"></i>Not enough data available to show frequency chart
                             </div>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Backup Success Rate Chart -->
                 <div class="col-md-6">
                     <div class="card">
@@ -171,13 +181,14 @@
                                 <canvas id="success-rate-chart"></canvas>
                             </div>
                             <div class="alert alert-info text-center d-none" id="success-chart-no-data">
-                                <i class="fas fa-info-circle me-2"></i>Not enough data available to show success rate chart
+                                <i class="fas fa-info-circle me-2"></i>Not enough data available to show success rate
+                                chart
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Forecast Section -->
             <div class="row mt-4" id="forecast-section">
                 <div class="col-12">
@@ -198,53 +209,8 @@
                                     <div class="alert alert-warning">
                                         <h6>Estimated Full Date</h6>
                                         <h4 id="full-date-value">-</h4>
-                                        <small class="forecast-label" id="full-date-note">Based on current growth rate</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="progress mb-2 mt-3" style="height: 25px;">
-                                <div class="progress-bar bg-success" id="current-usage-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                    <span class="progress-label" id="current-usage-label">0%</span>
-                                </div>
-                            </div>
-                            <div class="row mt-4">
-                                <div class="col-md-4">
-                                    <div class="card border-success">
-                                        <div class="card-body text-center">
-                                            <h5 class="card-title">1 Month</h5>
-                                            <h3 id="forecast-1m">-</h3>
-                                            <div class="progress mt-2">
-                                                <div class="progress-bar bg-success" id="forecast-1m-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                                    <span class="progress-label" id="forecast-1m-label">0%</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="card border-warning">
-                                        <div class="card-body text-center">
-                                            <h5 class="card-title">3 Months</h5>
-                                            <h3 id="forecast-3m">-</h3>
-                                            <div class="progress mt-2">
-                                                <div class="progress-bar bg-warning" id="forecast-3m-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                                    <span class="progress-label" id="forecast-3m-label">0%</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="card border-danger">
-                                        <div class="card-body text-center">
-                                            <h5 class="card-title">6 Months</h5>
-                                            <h3 id="forecast-6m">-</h3>
-                                            <div class="progress mt-2">
-                                                <div class="progress-bar bg-danger" id="forecast-6m-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                                    <span class="progress-label" id="forecast-6m-label">0%</span>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <small class="forecast-label" id="full-date-note">Based on current growth
+                                            rate</small>
                                     </div>
                                 </div>
                             </div>

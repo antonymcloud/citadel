@@ -76,8 +76,6 @@
                         <tr>
                             <th>Archive Name</th>
                             <th>Created</th>
-                            <th>Size</th>
-                            <th>Comment</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -92,16 +90,6 @@
                                 Unknown
                                 {% endif %}
                             </td>
-                            <td class="archive-size">
-                                {% if archive.size_formatted %}
-                                {{ archive.size_formatted }}
-                                {% elif archive.size %}
-                                {{ archive.size|filesize }}
-                                {% else %}
-                                Unknown
-                                {% endif %}
-                            </td>
-                            <td class="archive-comment">{{ archive.comment|default('No comment') }}</td>
                             <td>
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-info view-archive" data-archive="{{ archive.name }}">

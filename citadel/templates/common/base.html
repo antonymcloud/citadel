@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +13,7 @@
         body {
             min-height: 100vh;
         }
+
         .sidebar {
             height: 100vh;
             position: fixed;
@@ -23,17 +25,20 @@
             border-right: 1px solid #dee2e6;
             z-index: 100;
         }
+
         .main-content {
             margin-left: 250px;
             padding: 20px;
             max-width: calc(100% - 250px);
         }
+
         .main-container {
             max-width: 1200px;
             width: 100%;
             margin: 0 auto;
             padding: 0 15px;
         }
+
         /* Fixed width navbar */
         .navbar-container {
             max-width: 1200px;
@@ -45,16 +50,19 @@
             align-items: center;
             flex-wrap: nowrap;
         }
+
         .container-fluid {
             padding-left: 0 !important;
             padding-right: 0 !important;
         }
+
         /* Reset navbar padding and margin */
         .navbar {
             padding: 0;
             margin: 0;
             height: 50px;
         }
+
         /* Fixed width navbar container but with space for fixed logo */
         .navbar-container {
             position: relative;
@@ -62,8 +70,10 @@
             height: 100%;
             display: flex;
             align-items: center;
-            padding-left: 200px; /* Make space for logo */
+            padding-left: 200px;
+            /* Make space for logo */
         }
+
         /* Position the logo absolutely at the left edge */
         .navbar-brand-container {
             position: absolute;
@@ -76,8 +86,10 @@
             padding: 0;
             margin: 0;
             z-index: 1050;
-            background-color: #212529; /* Same as navbar bg */
+            background-color: #212529;
+            /* Same as navbar bg */
         }
+
         .navbar-brand {
             padding: 0;
             margin: 0;
@@ -86,10 +98,12 @@
             height: 100%;
             white-space: nowrap;
         }
+
         .navbar-brand img {
             margin-left: 10px;
             display: block;
         }
+
         /* Position user dropdown at the far right */
         .user-dropdown-container {
             position: absolute;
@@ -101,8 +115,10 @@
             padding: 0;
             margin: 0;
             z-index: 1050;
-            background-color: #212529; /* Same as navbar bg */
+            background-color: #212529;
+            /* Same as navbar bg */
         }
+
         .user-dropdown {
             padding: 0 15px;
             height: 100%;
@@ -110,74 +126,121 @@
             align-items: center;
             white-space: nowrap;
         }
+
         .user-dropdown .nav-link {
             display: flex;
             align-items: center;
             height: 100%;
             padding: 0;
         }
+
         .user-dropdown .dropdown-toggle i {
             margin-right: 5px;
         }
+
         /* Adjust navbar container to make room for both logo and user dropdown */
         .navbar-container {
-            padding-left: 200px; /* Space for logo */
-            padding-right: 200px; /* Space for user dropdown */
+            padding-left: 200px;
+            /* Space for logo */
+            padding-right: 200px;
+            /* Space for user dropdown */
         }
+
         .navbar-brand img {
             flex-shrink: 0;
         }
+
         /* Ensure navbar collapse behaves properly */
         .navbar-collapse {
             flex-grow: 0;
         }
+
         /* Sidebar adjustments */
         .sidebar {
             width: 250px;
         }
+
         @media (max-width: 992px) {
             .main-content {
                 margin-left: 0;
                 max-width: 100%;
             }
+
             .sidebar {
                 display: none;
             }
         }
+
         .nav-link {
             color: #495057;
         }
-        
+
         .nav-link.active {
             color: #0d6efd;
             font-weight: bold;
         }
+
         .card-header {
             font-weight: bold;
         }
+
         .flash-messages {
             margin-top: 50px;
-            width: 100%;
+            /* This accounts for the navbar height */
             padding-top: 10px;
+            z-index: 99;
+            position: relative;
+            width: 100%;
+            /* Set explicit width */
+        }
+
+        /* Adjust flash messages when user is logged in (sidebar is present) */
+        body:has(.sidebar) .flash-messages {
+            margin-left: 250px;
+            /* Match sidebar width */
+            width: calc(100% - 250px);
+            /* Adjust width to account for sidebar */
+        }
+
+        /* The container within flash-messages needs proper padding */
+        .flash-messages .container {
+            padding-left: 15px;
+            padding-right: 15px;
+            width: 100%;
+            max-width: 1200px;
+            /* Match main-container max-width */
+        }
+
+        /* For smaller screens when sidebar is hidden */
+        @media (max-width: 992px) {
+            body:has(.sidebar) .flash-messages {
+                margin-left: 0;
+                width: 100%;
+            }
         }
     </style>
     {% block head %}{% endblock %}
 </head>
+
 <body>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
         <div class="container-fluid p-0">
             <!-- Absolutely positioned logo that won't move -->
             <div class="navbar-brand-container">
-                <a class="navbar-brand" href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('index') }}" style="color: rgb(144, 238, 144);">
-                    <img src="{{ url_for('static', filename='citadel.svg') }}" height="25px" width="25px" style="stroke-width: 3px !important;" class="me-2" />
+                <a class="navbar-brand"
+                    href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('index') }}"
+                    style="color: rgb(144, 238, 144);">
+                    <img src="{{ url_for('static', filename='citadel.svg') }}" height="25px" width="25px"
+                        style="stroke-width: 3px !important;" class="me-2" />
                     <span>Citadel</span>
                 </a>
             </div>
-            
+
             <!-- Rest of navbar with spacing to avoid overlapping logo and user dropdown -->
             <div class="navbar-container">
-                <button class="navbar-toggler mx-auto" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <button class="navbar-toggler mx-auto" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#navbarNav">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="navbarNav">
@@ -186,30 +249,34 @@
                     </ul>
                 </div>
             </div>
-            
+
             <!-- Absolutely positioned user dropdown at the right edge -->
             <div class="user-dropdown-container">
                 {% if current_user.is_authenticated %}
                 <div class="user-dropdown">
                     <div class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" style="color: lightgreen !important;" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle" style="color: lightgreen !important;" href="#"
+                            id="userDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user"></i>
                             <span class="ms-1">{{ current_user.username }}</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
-                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
                         </ul>
                     </div>
                 </div>
                 {% else %}
                 <div class="user-dropdown">
-                    <a class="nav-link" href="{{ url_for('auth.login') }}" style="color: lightgreen !important;">Login</a>
+                    <a class="nav-link" href="{{ url_for('auth.login') }}"
+                        style="color: lightgreen !important;">Login</a>
                 </div>
                 {% endif %}
             </div>
-            </div>
+        </div>
         </div>
     </nav>
 
@@ -219,32 +286,38 @@
         <div class="position-sticky">
             <ul class="nav flex-column">
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+                        href="{{ url_for('dashboard') }}">
                         <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'backup.list_repositories' %}active{% endif %}" href="{{ url_for('backup.list_repositories') }}">
+                    <a class="nav-link {% if request.endpoint == 'backup.list_repositories' %}active{% endif %}"
+                        href="{{ url_for('backup.list_repositories') }}">
                         <i class="fas fa-database me-2"></i>Repositories
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'sources.list_sources' %}active{% endif %}" href="{{ url_for('sources.list_sources') }}">
+                    <a class="nav-link {% if request.endpoint == 'sources.list_sources' %}active{% endif %}"
+                        href="{{ url_for('sources.list_sources') }}">
                         <i class="fas fa-folder me-2"></i>Sources
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'backup.create_backup' %}active{% endif %}" href="{{ url_for('backup.create_backup') }}">
+                    <a class="nav-link {% if request.endpoint == 'backup.create_backup' %}active{% endif %}"
+                        href="{{ url_for('backup.create_backup') }}">
                         <i class="fas fa-plus-circle me-2"></i>Create Backup
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'backup.list_jobs' %}active{% endif %}" href="{{ url_for('backup.list_jobs') }}">
+                    <a class="nav-link {% if request.endpoint == 'backup.list_jobs' %}active{% endif %}"
+                        href="{{ url_for('backup.list_jobs') }}">
                         <i class="fas fa-tasks me-2"></i>Jobs
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'schedules.list_schedules' %}active{% endif %}" href="{{ url_for('schedules.list_schedules') }}">
+                    <a class="nav-link {% if request.endpoint == 'schedules.list_schedules' %}active{% endif %}"
+                        href="{{ url_for('schedules.list_schedules') }}">
                         <i class="fas fa-calendar-alt me-2"></i>Schedules
                     </a>
                 </li>
@@ -255,7 +328,8 @@
                     </h6>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'auth.register' %}active{% endif %}" href="{{ url_for('auth.register') }}">
+                    <a class="nav-link {% if request.endpoint == 'auth.register' %}active{% endif %}"
+                        href="{{ url_for('auth.register') }}">
                         <i class="fas fa-user-plus me-2"></i>Add User
                     </a>
                 </li>
@@ -266,17 +340,17 @@
     {% endif %}
 
     <!-- Flash Messages -->
-    <div class="flash-messages">
+    <div class="flash-messages {% if current_user.is_authenticated %}with-sidebar{% endif %}">
         <div class="container">
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
             {% endwith %}
         </div>
     </div>
@@ -295,4 +369,5 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     {% block scripts %}{% endblock %}
 </body>
+
 </html>

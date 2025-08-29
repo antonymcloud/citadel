@@ -9,6 +9,9 @@ from citadel.models.job import Job
 from citadel.models.source import Source
 from citadel.models.schedule import Schedule
 from citadel.backup.utils import run_backup_job, list_archives as list_archives_util, extract_stats_from_output
+import logging
+
+logger = logging.getLogger(__name__)
 
 backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
 
@@ -17,7 +20,7 @@ backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
 def list_repositories():
     """Show all repositories"""
     repos = Repository.query.filter_by(user_id=current_user.id).all()
-    return render_template('backup/repositories.html', repos=repos)
+    return render_template('backup/repositories/repositories.html', repos=repos)
 
 @backup_bp.route('/repository/new', methods=['GET', 'POST'])
 @login_required
@@ -53,7 +56,7 @@ def add_repository():
         flash('Repository created successfully.', 'success')
         return redirect(url_for('backup.repository_detail', repo_id=repository.id))
     
-    return render_template('backup/add_repository.html')
+    return render_template('backup/repositories/add_repository.html')
 
 @backup_bp.route('/repository/<int:repo_id>')
 @login_required
@@ -78,11 +81,15 @@ def repository_detail(repo_id):
     # Get sources for backup form
     sources = Source.query.filter_by(user_id=current_user.id).all()
     
-    return render_template('backup/repository_detail.html', 
+    # Get any schedules using this repository (if any)
+    schedules = Schedule.query.filter_by(repository_id=repo_id).all()
+
+    return render_template('backup/repositories/repository_detail.html', 
                            repo=repository, 
                            jobs=jobs, 
                            archives=archives,
-                           sources=sources)
+                           sources=sources,
+                           schedules=schedules)
 
 @backup_bp.route('/repository/<int:repo_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -128,7 +135,7 @@ def edit_repository(repo_id):
         flash('Repository updated successfully.', 'success')
         return redirect(url_for('backup.repository_detail', repo_id=repository.id))
     
-    return render_template('backup/edit_repository.html', repo=repository)
+    return render_template('backup/repositories/edit_repository.html', repo=repository)
 
 @backup_bp.route('/repository/<int:repo_id>/delete', methods=['POST'])
 @login_required
@@ -523,7 +530,7 @@ def api_repository_stats(repo_id):
         last_backup_time = latest_backup.timestamp.isoformat()
         if latest_backup.get_metadata() and 'stats' in latest_backup.get_metadata():
             stats = latest_backup.get_metadata().get('stats', {})
-            latest_size = stats.get('this_archive_deduplicated_size')
+            latest_size = stats.get('all_archives_deduplicated_size')
     
     # Get archives count
     archives_count = 0
@@ -638,30 +645,20 @@ def api_repository_forecast(repo_id):
     size_data = []
     for job in backup_jobs:
         if job.get_metadata() and 'stats' in job.get_metadata():
-            metadata = job.get_metadata()
-            stats = metadata.get('stats', {})
-            
-            # Try all possible size fields
-            size_value = None
-            for key in ['this_archive_deduplicated_size', 'all_archives_deduplicated_size', 'deduplicated_size']:
-                if key in stats:
-                    size_value = stats[key]
-                    if size_value:
-                        break
-            
-            if size_value:
-                # Parse size string if needed
-                if isinstance(size_value, str):
-                    try:
-                        from citadel.backup.utils import parse_size
-                        size_in_bytes = parse_size(size_value)
-                        size_data.append({
-                            'date': job.timestamp.timestamp(),  # Unix timestamp
-                            'size': size_in_bytes
-                        })
-                    except (ValueError, TypeError) as e:
-                        print(f"DEBUG: Error parsing size in forecast: {e}")
-    
+            stats = job.get_metadata().get('stats', {})
+            # Use all_archives_deduplicated_size as the primary metric
+            # since it represents the total repository size
+            if 'all_archives_deduplicated_size' in stats:
+                size_str = stats['all_archives_deduplicated_size']
+                try:
+                    from citadel.backup.utils import parse_size
+                    size_data.append({
+                        'date': job.timestamp.timestamp(),
+                        'size': parse_size(size_str)
+                    })
+                except (ValueError, TypeError, IndexError) as e:
+                    logger.debug(f"Error parsing size in forecast: {e}")
+                    continue    
     
     # Need at least 2 data points after filtering
     if len(size_data) < 2:
@@ -728,7 +725,7 @@ def api_repository_growth_chart(repo_id):
         repository_id=repo_id, 
         job_type='create', 
         status='success'
-    ).order_by(Job.timestamp.asc()).all()
+    ).order_by(Job.timestamp.asc()).limit(100).all()
     
     # Need at least 2 data points for a meaningful chart
     if len(backup_jobs) < 2:
@@ -762,38 +759,29 @@ def api_repository_growth_chart(repo_id):
             'is_sample_data': True,
             'message': 'Showing sample data. Create at least 2 backups to see actual growth.'
         })
-    
-    # Extract data from the jobs
-    growth_data = []
-    
+
     # Helper function to extract size from job metadata
     def extract_job_size(job):
         if not job.get_metadata() or 'stats' not in job.get_metadata():
             return None
             
         stats = job.get_metadata().get('stats', {})
-        
+
         # First try to get deduplicated size
-        if 'this_archive_deduplicated_size' in stats:
-            size_str = stats['this_archive_deduplicated_size']
+        if 'all_archives_deduplicated_size' in stats:
+            size_str = stats['all_archives_deduplicated_size']
             try:
                 from citadel.backup.utils import parse_size
-                # Convert to GB for consistent charting
-                size_bytes = parse_size(size_str)
-                return size_bytes / (1024 * 1024 * 1024)  # Convert bytes to GB
+                # Try to go with GB
+                size_bytes = (parse_size(size_str)) / (1024 * 1024 * 1024)
+                if size_bytes < 0.01:
+                    # Fallback to MB
+                    size_bytes = (parse_size(size_str)) / (1024 * 1024)
+
+                return size_bytes 
             except (ValueError, IndexError) as e:
                 print(f"DEBUG: Error parsing size: {e}")
         
-        # Fallback to other size values if available
-        for key in ['all_archives_deduplicated_size', 'deduplicated_size']:
-            if key in stats:
-                size_str = stats[key]
-                try:
-                    from citadel.backup.utils import parse_size
-                    size_bytes = parse_size(size_str)
-                    return size_bytes / (1024 * 1024 * 1024)  # Convert to GB
-                except (ValueError, IndexError):
-                    pass
                 
         return None
     
@@ -846,7 +834,7 @@ def api_repository_frequency_chart(repo_id):
         repository_id=repo_id, 
         job_type='create', 
         status='success'
-    ).order_by(Job.timestamp.asc()).all()
+    ).order_by(Job.timestamp.asc()).limit(100).all()
     
     # Need at least 2 data points for a meaningful chart
     if len(backup_jobs) < 1:
