@@ -111,12 +111,12 @@ $(document).ready(function() {
         }
         
         // Set the full date value
-        if (forecast.full_date) {
-            $('#full-date-value').text(formatDate(forecast.full_date));
+        if (forecast.max_date) {
+            $('#full-date-value').text(formatDate(forecast.max_date));
             
             // Add days until full
-            if (forecast.days_until_full) {
-                $('#full-date-note').text(`${forecast.days_until_full} days until full based on current growth rate`);
+            if (forecast.days_until_max) {
+                $('#full-date-note').text(`${forecast.days_until_max} days until full based on current growth rate`);
             }
         } else {
             $('#full-date-value').text('Unknown');
@@ -198,105 +198,111 @@ $(document).ready(function() {
                     
                     updateAnalyticsDisplay(stats);
                     
-                    // Load the growth chart
+                    // Load data for growth chart
                     loadGrowthChart();
                     
-                    // Load the frequency chart
+                    // Load backup frequency chart
                     loadFrequencyChart();
                     
-                    // Create success rate chart
-                    createSuccessRateChart(stats.successful_jobs, stats.failed_jobs);
+                    // Load forecast data
+                    loadForecastData();
                     
-                    // Also load forecast data
-                    $.ajax({
-                        url: repoForecastApiUrl,
-                        type: 'GET',
-                        dataType: 'json',
-                        success: function(forecast) {
-                            console.log("Forecast loaded successfully:", forecast);
-                            
-                            // Convert any "None" string values to null
-                            Object.keys(forecast).forEach(key => {
-                                if (forecast[key] === "None") {
-                                    forecast[key] = null;
-                                }
-                            });
-                            
-                            updateForecastDisplay(forecast);
-                        },
-                        error: function(xhr, status, error) {
-                            console.error('Failed to load forecast data:', error);
-                            console.error('Response:', xhr.responseText);
-                            
-                            // Still show analytics without forecast
-                            $('#forecast-section').hide();
-                        }
-                    });
-                } catch (e) {
-                    console.error("Error processing analytics data:", e);
-                    $('#analytics-loading').addClass('d-none');
-                    $('#analytics-content').removeClass('d-none').html(`
-                        <div class="alert alert-danger">
-                            <h5><i class="fas fa-exclamation-circle"></i> Error loading analytics</h5>
-                            <p>There was a problem processing the analytics data. Please try again later.</p>
-                            <p><small>Technical details: ${e.message}</small></p>
-                        </div>
-                    `);
-                }
-                
-                // Finally, always show the content and hide the loading indicator, even if there was an error
-                setTimeout(function() {
                     $('#analytics-loading').addClass('d-none');
                     $('#analytics-content').removeClass('d-none');
-                }, 500);
+                } catch (e) {
+                    console.error("Error processing stats:", e);
+                    $('#analytics-loading').addClass('d-none');
+                    $('#analytics-content').html(
+                        '<div class="alert alert-warning">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                        'Error processing repository statistics: ' + e.message +
+                        '</div>'
+                    ).removeClass('d-none');
+                }
             },
             error: function(xhr, status, error) {
-                console.error('Failed to load analytics data:', error);
-                console.error('Response:', xhr.responseText);
-                
-                // Show an error message in the analytics section
+                console.error("Error loading stats:", error);
                 $('#analytics-loading').addClass('d-none');
-                $('#analytics-content').removeClass('d-none');
-                
-                // Add error alert
-                $('.card-body', $('#analytics-content').closest('.card')).prepend(
+                $('#analytics-content').html(
                     '<div class="alert alert-danger">' +
                     '<i class="fas fa-exclamation-circle me-2"></i>' +
-                    'Failed to load analytics data: ' + error +
+                    'Error loading repository statistics: ' + error +
+                    '</div>'
+                ).removeClass('d-none');
+            }
+        });
+    }
+    
+    // Load forecast data
+    function loadForecastData() {
+        $.ajax({
+            url: repoForecastApiUrl,
+            type: 'GET',
+            dataType: 'json',
+            success: function(forecast) {
+                console.log("Forecast data loaded:", forecast);
+                
+                if (!forecast.forecast_available) {
+                    $('#forecast-section').html(
+                        '<div class="alert alert-info">' +
+                        '<i class="fas fa-info-circle me-2"></i>' +
+                        (forecast.message || 'Not enough data available for forecasting.') +
+                        '</div>'
+                    );
+                    return;
+                }
+                
+                // Update forecast display
+                updateForecastDisplay(forecast);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading forecast:", error);
+                $('#forecast-section').html(
+                    '<div class="alert alert-danger">' +
+                    '<i class="fas fa-exclamation-circle me-2"></i>' +
+                    'Error loading forecast data: ' + error +
                     '</div>'
                 );
             }
         });
     }
     
+    // Load the growth chart data
     function loadGrowthChart() {
-        console.log("Loading growth chart...");
         $.ajax({
             url: repoGrowthChartUrl,
             type: 'GET',
             dataType: 'json',
-            success: function(response) {
-                console.log("Growth chart response:", response);
+            success: function(chartData) {
+                console.log("Growth chart data loaded:", chartData);
                 
-                // Check if we have data to show in the new format
-                if (response.growth_data && response.growth_data.labels && response.growth_data.data && 
-                    response.growth_data.labels.length >= 2 && response.growth_data.data.length >= 2) {
+                // Check if we have real data or sample data
+                if (chartData.is_sample_data) {
+                    // Display sample data with a note
+                    $('#growth-chart-container').prepend(
+                        '<div class="alert alert-info mb-3">' +
+                        '<i class="fas fa-info-circle me-2"></i>' +
+                        (chartData.message || 'Showing sample data. Create more backups to see actual growth.') +
+                        '</div>'
+                    );
+                }
+                
+                // Create the chart
+                const ctx = document.getElementById('growth-chart').getContext('2d');
+                if (chartData.growth_data) {
+                    // Get the data from the response
+                    const labels = chartData.growth_data.labels || [];
+                    const data = chartData.growth_data.data || [];
+                    const tooltips = chartData.growth_data.archive_names || [];
                     
-                    // We have structured data in the new format, create a chart
-                    $('#growth-chart-no-data').addClass('d-none');
-                    
-                    // Prepare the container with a fresh canvas
-                    $('#growth-chart-container').html('<canvas id="growth-chart"></canvas>');
-                    
-                    // Create the chart with the provided data
-                    const ctx = document.getElementById('growth-chart').getContext('2d');
-                    growthChart = new Chart(ctx, {
+                    // Create the chart
+                    const growthChart = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: response.growth_data.labels,
+                            labels: labels,
                             datasets: [{
                                 label: 'Repository Size (GB)',
-                                data: response.growth_data.data,
+                                data: data,
                                 backgroundColor: 'rgba(54, 162, 235, 0.2)',
                                 borderColor: 'rgba(54, 162, 235, 1)',
                                 borderWidth: 2,
@@ -325,211 +331,202 @@ $(document).ready(function() {
                             plugins: {
                                 tooltip: {
                                     callbacks: {
-                                        title: function(tooltipItems) {
-                                            return tooltipItems[0].label;
+                                        title: function(tooltipItem) {
+                                            return labels[tooltipItem[0].dataIndex];
                                         },
-                                        label: function(context) {
-                                            let label = response.growth_data.archive_names ? 
-                                                        response.growth_data.archive_names[context.dataIndex] || '' : '';
-                                            let value = context.raw;
+                                        label: function(tooltipItem) {
+                                            const dataIndex = tooltipItem.dataIndex;
+                                            const sizeValue = data[dataIndex];
+                                            const archiveName = tooltips[dataIndex] || 'Unknown';
                                             
-                                            if (label) {
-                                                return `${label}: ${value.toFixed(2)} GB`;
-                                            } else {
-                                                return `${value.toFixed(2)} GB`;
-                                            }
+                                            return [
+                                                `Archive: ${archiveName}`,
+                                                `Size: ${sizeValue.toFixed(2)} GB`
+                                            ];
                                         }
                                     }
-                                },
-                                legend: {
-                                    display: true,
-                                    position: 'top'
                                 }
                             }
                         }
                     });
-                    
-                    // If it's sample data, show a note
-                    if (response.is_sample_data) {
-                        $('#growth-chart-container').append(
-                            '<div class="alert alert-info mt-3 text-center">' +
-                            '<i class="fas fa-info-circle me-2"></i>' +
-                            (response.message || 'This is sample data. Create more backups to see actual growth.') +
-                            '</div>'
-                        );
-                    }
                 } else {
-                    // No valid data, show the no-data message
-                    $('#growth-chart-container').html('');
-                    $('#growth-chart-no-data').removeClass('d-none');
-                    
-                    // Add a more detailed message if provided
-                    if (response.message) {
-                        $('#growth-chart-no-data').html(
-                            '<i class="fas fa-info-circle me-2"></i>' + response.message
-                        );
-                    }
+                    // Fallback if we don't have the expected data format
+                    $('#growth-chart-container').html(
+                        '<div class="alert alert-warning">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                        'Unable to display growth chart: data format not recognized.' +
+                        '</div>'
+                    );
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Failed to load growth chart data:', error);
-                $('#growth-chart-container').html('');
-                $('#growth-chart-no-data').removeClass('d-none');
-                $('#growth-chart-no-data').html(
-                    '<i class="fas fa-exclamation-circle me-2"></i>Error loading growth chart data: ' + error
+                console.error("Error loading growth chart:", error);
+                $('#growth-chart-container').html(
+                    '<div class="alert alert-danger">' +
+                    '<i class="fas fa-exclamation-circle me-2"></i>' +
+                    'Error loading growth chart: ' + error +
+                    '</div>'
                 );
             }
         });
     }
     
+    // Load the frequency chart data
     function loadFrequencyChart() {
-        console.log("Loading frequency chart...");
         $.ajax({
             url: repoFrequencyChartUrl,
             type: 'GET',
             dataType: 'json',
-            success: function(response) {
-                console.log("Frequency chart response:", response);
+            success: function(chartData) {
+                console.log("Frequency chart data loaded:", chartData);
                 
-                // Check if we have data to show
-                if (response.chart_data && response.chart_data.labels && response.chart_data.datasets && 
-                    response.chart_data.labels.length > 0) {
+                // Check if we have real data or sample data
+                if (chartData.is_sample_data) {
+                    // Display sample data with a note
+                    $('#frequency-chart-container').prepend(
+                        '<div class="alert alert-info mb-3">' +
+                        '<i class="fas fa-info-circle me-2"></i>' +
+                        'Showing sample data. Create more backups to see actual frequency patterns.' +
+                        '</div>'
+                    );
+                }
+                
+                // Create charts if we have frequency data
+                if (chartData.frequency_data) {
+                    const dayData = chartData.frequency_data.by_day || {};
+                    const hourData = chartData.frequency_data.by_hour || {};
                     
-                    // We have structured data, create a chart
-                    $('#frequency-chart-no-data').addClass('d-none');
-                    
-                    // Prepare the container with a fresh canvas
-                    $('#frequency-chart-container').html('<canvas id="frequency-chart"></canvas>');
-                    
-                    // Create the chart with the provided data
-                    const ctx = document.getElementById('frequency-chart').getContext('2d');
-                    frequencyChart = new Chart(ctx, {
-                        type: response.chart_data.type || 'bar',
-                        data: {
-                            labels: response.chart_data.labels,
-                            datasets: response.chart_data.datasets
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    title: {
-                                        display: true,
-                                        text: 'Number of Backups'
-                                    }
-                                }
+                    // Create day of week chart
+                    if (dayData.labels && dayData.data) {
+                        const dayCtx = document.getElementById('day-frequency-chart').getContext('2d');
+                        const dayChart = new Chart(dayCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: dayData.labels,
+                                datasets: [{
+                                    label: 'Backups by Day of Week',
+                                    data: dayData.data,
+                                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    borderWidth: 1
+                                }]
                             },
-                            plugins: {
-                                legend: {
-                                    display: response.chart_data.datasets.length > 1
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        title: function(tooltipItems) {
-                                            return tooltipItems[0].label;
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Number of Backups'
                                         },
-                                        label: function(context) {
-                                            let label = context.dataset.label || '';
-                                            let value = context.raw;
-                                            
-                                            if (label) {
-                                                return `${label}: ${value}`;
-                                            } else {
-                                                return `${value} backups`;
-                                            }
+                                        ticks: {
+                                            stepSize: 1
                                         }
                                     }
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
                     
-                    // If it's sample data, show a note
-                    if (response.is_sample_data) {
-                        $('#frequency-chart-container').append(
-                            '<div class="alert alert-info mt-3 text-center">' +
-                            '<i class="fas fa-info-circle me-2"></i>' +
-                            'This is sample data. Create more backups to see actual frequency.' +
-                            '</div>'
-                        );
+                    // Create hour of day chart
+                    if (hourData.labels && hourData.data) {
+                        const hourCtx = document.getElementById('hour-frequency-chart').getContext('2d');
+                        const hourChart = new Chart(hourCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: hourData.labels,
+                                datasets: [{
+                                    label: 'Backups by Hour of Day',
+                                    data: hourData.data,
+                                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                                    borderColor: 'rgba(153, 102, 255, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Number of Backups'
+                                        },
+                                        ticks: {
+                                            stepSize: 1
+                                        }
+                                    }
+                                }
+                            }
+                        });
                     }
                 } else {
-                    // No valid data, show the no-data message
-                    $('#frequency-chart-container').html('');
-                    $('#frequency-chart-no-data').removeClass('d-none');
+                    // Fallback if we don't have the expected data format
+                    $('#frequency-chart-container').html(
+                        '<div class="alert alert-warning">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                        'Unable to display frequency charts: data format not recognized.' +
+                        '</div>'
+                    );
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Failed to load frequency chart data:', error);
-                $('#frequency-chart-container').html('');
-                $('#frequency-chart-no-data').removeClass('d-none');
-                $('#frequency-chart-no-data').html(
-                    '<i class="fas fa-exclamation-circle me-2"></i>Error loading frequency chart data: ' + error
+                console.error("Error loading frequency chart:", error);
+                $('#frequency-chart-container').html(
+                    '<div class="alert alert-danger">' +
+                    '<i class="fas fa-exclamation-circle me-2"></i>' +
+                    'Error loading frequency chart: ' + error +
+                    '</div>'
                 );
             }
         });
     }
     
-    function createSuccessRateChart(successCount, failCount) {
-        if (successCount === null || failCount === null) {
-            $('#success-chart-no-data').removeClass('d-none');
+    // Load analytics when the page loads
+    loadAnalytics();
+    
+    // Add event handlers for interactive elements
+    $('#update-max-size-button').on('click', function() {
+        const maxSizeInput = $('#max-size-input').val();
+        if (!maxSizeInput) {
+            alert('Please enter a maximum size value.');
             return;
         }
         
-        const total = successCount + failCount;
-        if (total === 0) {
-            $('#success-chart-no-data').removeClass('d-none');
+        // Convert to number and validate
+        const maxSize = parseFloat(maxSizeInput);
+        if (isNaN(maxSize) || maxSize <= 0) {
+            alert('Please enter a valid number greater than 0.');
             return;
         }
         
-        const successRate = (successCount / total) * 100;
-        const failRate = (failCount / total) * 100;
-        
-        // Create a doughnut chart
-        const ctx = document.getElementById('success-rate-chart').getContext('2d');
-        new Chart(ctx, {
-            type: 'doughnut',
+        // Send update request
+        $.ajax({
+            url: updateRepoApiUrl,
+            type: 'POST',
             data: {
-                labels: ['Success', 'Failed'],
-                datasets: [{
-                    data: [successRate, failRate],
-                    backgroundColor: ['rgba(40, 167, 69, 0.8)', 'rgba(220, 53, 69, 0.8)'],
-                    borderColor: ['rgba(40, 167, 69, 1)', 'rgba(220, 53, 69, 1)'],
-                    borderWidth: 1
-                }]
+                max_size: maxSize
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let value = context.raw;
-                                return `${value.toFixed(1)}%`;
-                            }
-                        }
-                    }
+            success: function(response) {
+                if (response.success) {
+                    alert('Maximum size updated successfully.');
+                    // Reload analytics to reflect the change
+                    loadAnalytics();
+                } else {
+                    alert('Error updating maximum size: ' + (response.error || 'Unknown error'));
                 }
+            },
+            error: function(xhr, status, error) {
+                alert('Error updating maximum size: ' + error);
             }
         });
-        
-        // Also show the success rate as text in the center
-        $('#success-rate-chart').after(`
-            <div class="success-rate-value">${successRate.toFixed(1)}%</div>
-        `);
-    }
-    
-    // Event Handlers
-    $('#refreshAnalytics').on('click', function() {
-        loadAnalytics();
     });
     
-    // Initial load of analytics
-    loadAnalytics();
+    // Set up refresh button
+    $('#refresh-analytics-button').on('click', function() {
+        loadAnalytics();
+    });
 });

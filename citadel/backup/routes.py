@@ -515,9 +515,15 @@ def api_repository_stats(repo_id):
     # Get size data from the most recent successful backup job
     latest_backup = backup_jobs[0] if backup_jobs else None
     latest_size = None
-    if latest_backup and latest_backup.get_metadata():
-        metadata = latest_backup.get_metadata()
-        latest_size = metadata.get('deduplicated_size')
+    last_backup_time = None
+    average_size = 'Unknown'
+    average_compression = 'Unknown'
+    
+    if latest_backup:
+        last_backup_time = latest_backup.timestamp.isoformat()
+        if latest_backup.get_metadata() and 'stats' in latest_backup.get_metadata():
+            stats = latest_backup.get_metadata().get('stats', {})
+            latest_size = stats.get('this_archive_deduplicated_size')
     
     # Get archives count
     archives_count = 0
@@ -525,15 +531,42 @@ def api_repository_stats(repo_id):
         archives = list_job.get_metadata().get('archives', [])
         archives_count = len(archives)
     
-    # Collect size data for growth chart
+    # Collect size data for growth chart and calculate averages
     size_trend = []
+    total_size_bytes = 0
+    total_compression_ratio = 0
+    valid_jobs_count = 0
+    
     for job in backup_jobs[:30]:  # Limit to last 30 jobs for performance
-        if job.get_metadata():
-            metadata = job.get_metadata()
-            size_trend.append({
-                'date': job.timestamp.isoformat(),
-                'size': metadata.get('deduplicated_size')
-            })
+        if job.get_metadata() and 'stats' in job.get_metadata():
+            stats = job.get_metadata().get('stats', {})
+            deduplicated_size = stats.get('this_archive_deduplicated_size')
+            compression_ratio = stats.get('compression_ratio')
+            
+            if deduplicated_size:
+                # Add to trend data
+                size_trend.append({
+                    'date': job.timestamp.isoformat(),
+                    'size': deduplicated_size
+                })
+                
+                # Calculate for averages if we have valid data
+                from citadel.backup.utils import extract_size_bytes
+                size_bytes = extract_size_bytes(deduplicated_size)
+                if size_bytes > 0:
+                    total_size_bytes += size_bytes
+                    valid_jobs_count += 1
+                
+                # Add compression ratio if available
+                if compression_ratio and isinstance(compression_ratio, (int, float)) and compression_ratio > 0:
+                    total_compression_ratio += compression_ratio
+    
+    # Calculate averages if we have valid data
+    if valid_jobs_count > 0:
+        from citadel.backup.utils import format_size
+        average_size = format_size(total_size_bytes / valid_jobs_count)
+        if total_compression_ratio > 0:
+            average_compression = f"{(total_compression_ratio / valid_jobs_count):.2f}x"
     
     # Reverse to get chronological order
     size_trend.reverse()
@@ -571,7 +604,10 @@ def api_repository_stats(repo_id):
         'total_jobs': total_jobs,
         'successful_jobs': successful_jobs,
         'failed_jobs': failed_jobs,
-        'size_trend': size_trend
+        'size_trend': size_trend,
+        'last_backup_time': last_backup_time,
+        'average_size': average_size,
+        'average_compression': average_compression
     })
 
 @backup_bp.route('/api/repository/<int:repo_id>/forecast')
@@ -601,31 +637,31 @@ def api_repository_forecast(repo_id):
     # Extract size data for forecasting
     size_data = []
     for job in backup_jobs:
-        if job.get_metadata():
+        if job.get_metadata() and 'stats' in job.get_metadata():
             metadata = job.get_metadata()
-            size_value = metadata.get('deduplicated_size')
+            stats = metadata.get('stats', {})
+            
+            # Try all possible size fields
+            size_value = None
+            for key in ['this_archive_deduplicated_size', 'all_archives_deduplicated_size', 'deduplicated_size']:
+                if key in stats:
+                    size_value = stats[key]
+                    if size_value:
+                        break
+            
             if size_value:
                 # Parse size string if needed
                 if isinstance(size_value, str):
-                    parts = size_value.split()
-                    if len(parts) == 2:
-                        value = float(parts[0])
-                        unit = parts[1].upper()
-                        multiplier = 1
-                        if unit == 'KB':
-                            multiplier = 1024
-                        elif unit == 'MB':
-                            multiplier = 1024 * 1024
-                        elif unit == 'GB':
-                            multiplier = 1024 * 1024 * 1024
-                        elif unit == 'TB':
-                            multiplier = 1024 * 1024 * 1024 * 1024
-                        
-                        size_in_bytes = value * multiplier
+                    try:
+                        from citadel.backup.utils import parse_size
+                        size_in_bytes = parse_size(size_value)
                         size_data.append({
                             'date': job.timestamp.timestamp(),  # Unix timestamp
                             'size': size_in_bytes
                         })
+                    except (ValueError, TypeError) as e:
+                        print(f"DEBUG: Error parsing size in forecast: {e}")
+    
     
     # Need at least 2 data points after filtering
     if len(size_data) < 2:
@@ -747,6 +783,17 @@ def api_repository_growth_chart(repo_id):
                 return size_bytes / (1024 * 1024 * 1024)  # Convert bytes to GB
             except (ValueError, IndexError) as e:
                 print(f"DEBUG: Error parsing size: {e}")
+        
+        # Fallback to other size values if available
+        for key in ['all_archives_deduplicated_size', 'deduplicated_size']:
+            if key in stats:
+                size_str = stats[key]
+                try:
+                    from citadel.backup.utils import parse_size
+                    size_bytes = parse_size(size_str)
+                    return size_bytes / (1024 * 1024 * 1024)  # Convert to GB
+                except (ValueError, IndexError):
+                    pass
                 
         return None
     
@@ -802,7 +849,7 @@ def api_repository_frequency_chart(repo_id):
     ).order_by(Job.timestamp.asc()).all()
     
     # Need at least 2 data points for a meaningful chart
-    if len(backup_jobs) < 2:
+    if len(backup_jobs) < 1:
         # Return sample data in a format suitable for client-side chart rendering
         days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         day_counts = [2, 3, 1, 5, 2, 0, 1]  # Sample data

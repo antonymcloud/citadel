@@ -60,6 +60,9 @@ Tower of Borg is a Flask web application that provides a web-based interface for
 3. Use mock data for testing Borg backup commands
 4. Verify statistics extraction with various output formats
 
+### General coding guidelines
+1. Don't perform complete rewrites when there are syntax errors from generated code, fix the errors in place.
+
 ## Statistics Handling
 
 ### Statistics Extraction
