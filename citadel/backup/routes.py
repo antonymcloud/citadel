@@ -69,8 +69,8 @@ def repository_detail(repo_id):
         flash('You do not have permission to view this repository.', 'danger')
         return redirect(url_for('backup.list_repositories'))
     
-    # Get jobs for this repository
-    jobs = Job.query.filter_by(repository_id=repo_id).order_by(Job.timestamp.desc()).limit(10).all()
+    # Get jobs for this repository, excluding 'list' jobs
+    jobs = Job.query.filter_by(repository_id=repo_id).filter(Job.job_type != 'list').order_by(Job.timestamp.desc()).limit(10).all()
     
     # Get archives (if any)
     archives = []
