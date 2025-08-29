@@ -261,11 +261,12 @@
                             <span class="ms-1">{{ current_user.username }}</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}"><i class="fas fa-user-circle me-2"></i>Profile</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.settings_home') }}"><i class="fas fa-cog me-2"></i>Settings</a></li>
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
                         </ul>
                     </div>
                 </div>
@@ -319,6 +320,12 @@
                     <a class="nav-link {% if request.endpoint == 'schedules.list_schedules' %}active{% endif %}"
                         href="{{ url_for('schedules.list_schedules') }}">
                         <i class="fas fa-calendar-alt me-2"></i>Schedules
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('settings.') %}active{% endif %}"
+                        href="{{ url_for('settings.settings_home') }}">
+                        <i class="fas fa-cog me-2"></i>Settings
                     </a>
                 </li>
                 {% if current_user.is_admin %}

@@ -76,6 +76,7 @@ def create_app(config=None):
     from citadel.sources import init_sources, sources_bp
     from citadel.schedules import init_schedules, schedules_bp
     from citadel.analytics import init_analytics, analytics_bp
+    from citadel.settings import init_settings, settings_bp
     from citadel.utils import init_scheduler, shutdown_scheduler
     
     # Initialize modules
@@ -84,6 +85,7 @@ def create_app(config=None):
     init_sources(app)
     init_schedules(app)
     init_analytics(app)
+    init_settings(app)
     
     # Initialize scheduler only if not disabled
     if os.environ.get('DISABLE_SCHEDULER', 'false').lower() != 'true':

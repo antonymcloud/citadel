@@ -1,0 +1,89 @@
+{% extends "common/base.html" %}
+
+{% block title %}Settings - Citadel{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Settings Navigation -->
+        <div class="col-md-3">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Settings</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('settings.profile_settings') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'settings.profile_settings' %}active{% endif %}">
+                        <i class="fas fa-user me-2"></i>Profile
+                    </a>
+                    <a href="{{ url_for('settings.security_settings') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'settings.security_settings' %}active{% endif %}">
+                        <i class="fas fa-lock me-2"></i>Security
+                    </a>
+                    <a href="{{ url_for('settings.appearance_settings') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'settings.appearance_settings' %}active{% endif %}">
+                        <i class="fas fa-palette me-2"></i>Appearance
+                    </a>
+                    <a href="{{ url_for('settings.notification_settings') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'settings.notification_settings' %}active{% endif %}">
+                        <i class="fas fa-bell me-2"></i>Notifications
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Content -->
+        <div class="col-md-9">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Settings Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Select a category from the sidebar to manage your settings.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-user me-2"></i>Profile</h5>
+                                    <p class="card-text">Update your username, email, and personal information.</p>
+                                    <a href="{{ url_for('settings.profile_settings') }}" class="btn btn-primary">Manage Profile</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-lock me-2"></i>Security</h5>
+                                    <p class="card-text">Change your password and manage security settings.</p>
+                                    <a href="{{ url_for('settings.security_settings') }}" class="btn btn-primary">Manage Security</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-palette me-2"></i>Appearance</h5>
+                                    <p class="card-text">Customize the look and feel of your Citadel interface.</p>
+                                    <a href="{{ url_for('settings.appearance_settings') }}" class="btn btn-primary">Manage Appearance</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-bell me-2"></i>Notifications</h5>
+                                    <p class="card-text">Configure how and when you receive notifications.</p>
+                                    <a href="{{ url_for('settings.notification_settings') }}" class="btn btn-primary">Manage Notifications</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
