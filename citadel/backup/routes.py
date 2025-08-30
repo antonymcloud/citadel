@@ -1,14 +1,21 @@
 """Backup routes for the Citadel application."""
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_from_directory, send_file, current_app, after_this_request
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
+import os
+import json
+import time
+from threading import Thread
+from pathlib import Path
 from citadel.models import db
 from citadel.models.repository import Repository
 from citadel.models.job import Job
 from citadel.models.source import Source
 from citadel.models.schedule import Schedule
 from citadel.backup.utils import run_backup_job, list_archives as list_archives_util, extract_stats_from_output
+from citadel.backup.mount import mount_archive, unmount_archive, get_temporary_mount_path, check_mount_status
+from citadel.backup.mount_management import get_all_active_mounts, get_orphaned_mounts, unmount_orphaned, find_borg_mounts, force_unmount_all
 import logging
 
 logger = logging.getLogger(__name__)
@@ -428,8 +435,529 @@ def api_get_job_status(job_id):
         'log_output': log_output,
         'total_output_length': len(job.log_output) if job.log_output else 0,
         'metadata': job.get_metadata(),
-        'error': job.get_metadata().get('error') if job.get_metadata() else None
+                    'error': job.get_metadata().get('error') if job.get_metadata() else None
+        })
+
+@backup_bp.route('/api/repository/<int:repo_id>/mount', methods=['POST'])
+@login_required
+def api_mount_archive(repo_id):
+    """Mount an archive for browsing."""
+    repository = Repository.query.get_or_404(repo_id)
+    
+    # Security check
+    if repository.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get the archive name from the request
+    data = request.json
+    if not data or 'archive_name' not in data:
+        return jsonify({'error': 'Missing archive name'}), 400
+    
+    archive_name = data['archive_name']
+    
+    # Check if a mount job for this archive already exists
+    existing_job = Job.query.filter(
+        Job.repository_id == repo_id,
+        Job.job_type == 'mount',
+        Job.user_id == current_user.id,
+        Job.status.in_(['pending', 'running', 'success'])
+    ).first()
+    
+    if existing_job:
+        # Check if the mount is still active
+        metadata = existing_job.get_metadata() or {}
+        mount_point = metadata.get('mount_point')
+        
+        if mount_point and check_mount_status(mount_point):
+            return jsonify({
+                'status': 'already_mounted',
+                'job_id': existing_job.id,
+                'mount_point': mount_point
+            })
+    
+    # Generate a temporary mount point
+    mount_point = get_temporary_mount_path(archive_name, current_user.id)
+    
+    # Create a mount job
+    job = Job(
+        job_type='mount',
+        status='pending',
+        repository_id=repo_id,
+        user_id=current_user.id,
+        timestamp=datetime.utcnow()
+    )
+    
+    # Store mount parameters in metadata
+    metadata = {
+        'archive_name': archive_name,
+        'mount_point': mount_point,
+        'mount_status': 'pending'
+    }
+    job.set_metadata(metadata)
+    
+    db.session.add(job)
+    db.session.commit()
+    
+    # Start the mount job in a background thread
+    mount_archive(job.id, current_app._get_current_object())
+    
+    return jsonify({
+        'status': 'mounting',
+        'job_id': job.id,
+        'mount_point': mount_point
     })
+
+@backup_bp.route('/api/mount/<int:job_id>/unmount', methods=['POST'])
+@login_required
+def api_unmount_archive(job_id):
+    """Unmount an archive that was previously mounted."""
+    job = Job.query.get_or_404(job_id)
+    
+    # Security check
+    if job.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Create an unmount job
+    unmount_job = Job(
+        job_type='unmount',
+        status='pending',
+        repository_id=job.repository_id,
+        user_id=current_user.id,
+        timestamp=datetime.utcnow()
+    )
+    
+    # Copy the mount point from the original job
+    metadata = job.get_metadata() or {}
+    mount_point = metadata.get('mount_point')
+    mount_pid = metadata.get('mount_pid')
+    
+    if not mount_point:
+        return jsonify({'error': 'Cannot find mount point information'}), 400
+    
+    # Store unmount parameters
+    unmount_metadata = {
+        'mount_job_id': job.id,
+        'mount_point': mount_point,
+        'mount_pid': mount_pid
+    }
+    unmount_job.set_metadata(unmount_metadata)
+    
+    db.session.add(unmount_job)
+    db.session.commit()
+    
+    # Start the unmount job
+    unmount_archive(unmount_job.id, current_app._get_current_object())
+    
+    return jsonify({
+        'status': 'unmounting',
+        'job_id': unmount_job.id
+    })
+
+@backup_bp.route('/api/mount/<int:job_id>/status')
+@login_required
+def api_mount_status(job_id):
+    """Check the status of a mount job."""
+    job = Job.query.get_or_404(job_id)
+    
+    # Security check
+    if job.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    metadata = job.get_metadata() or {}
+    mount_point = metadata.get('mount_point')
+    mount_status = metadata.get('mount_status', 'unknown')
+    
+    is_mounted = False
+    if mount_point and mount_status == 'mounted':
+        is_mounted = check_mount_status(mount_point)
+    
+    return jsonify({
+        'status': job.status,
+        'mount_status': mount_status if is_mounted else 'not_mounted',
+        'mount_point': mount_point,
+        'job_id': job.id
+    })
+
+@backup_bp.route('/api/mount/<int:job_id>/browse')
+@login_required
+def api_browse_mount(job_id):
+    """Browse files in a mounted archive."""
+    job = Job.query.get_or_404(job_id)
+    
+    # Security check
+    if job.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get path parameter
+    path_param = request.args.get('path', '')
+    
+    # Get mount point from job metadata
+    metadata = job.get_metadata() or {}
+    mount_point = metadata.get('mount_point')
+    
+    if not mount_point:
+        return jsonify({'error': 'Mount point not found'}), 404
+    
+    # Check if the mount is still active
+    if not check_mount_status(mount_point):
+        return jsonify({'error': 'Archive is not mounted'}), 400
+    
+    # Construct the full path
+    full_path = os.path.join(mount_point, path_param.lstrip('/'))
+    
+    # Normalize the path to prevent directory traversal attacks
+    full_path = os.path.normpath(full_path)
+    
+    # Make sure the path is still within the mount point
+    if not full_path.startswith(mount_point):
+        return jsonify({'error': 'Invalid path'}), 403
+    
+    # Check if the path exists
+    if not os.path.exists(full_path):
+        return jsonify({'error': 'Path not found'}), 404
+    
+    # If it's a directory, list its contents
+    if os.path.isdir(full_path):
+        items = []
+        
+        try:
+            for item_name in os.listdir(full_path):
+                item_path = os.path.join(full_path, item_name)
+                item_type = 'directory' if os.path.isdir(item_path) else 'file'
+                
+                item_stat = os.stat(item_path)
+                
+                items.append({
+                    'name': item_name,
+                    'type': item_type,
+                    'size': item_stat.st_size if item_type == 'file' else None,
+                    'modified': datetime.fromtimestamp(item_stat.st_mtime).isoformat()
+                })
+                
+            # Sort items: directories first, then files, both alphabetically
+            items.sort(key=lambda x: (x['type'] != 'directory', x['name'].lower()))
+            
+            return jsonify({
+                'status': 'success',
+                'path': path_param,
+                'items': items
+            })
+            
+        except Exception as e:
+            return jsonify({'error': f'Error listing directory: {str(e)}'}), 500
+    
+    # If it's a file, return file info
+    elif os.path.isfile(full_path):
+        item_stat = os.stat(full_path)
+        
+        return jsonify({
+            'status': 'success',
+            'file_info': {
+                'name': os.path.basename(full_path),
+                'size': item_stat.st_size,
+                'modified': datetime.fromtimestamp(item_stat.st_mtime).isoformat(),
+                'path': path_param
+            }
+        })
+    
+    return jsonify({'error': 'Unsupported file type'}), 400
+
+@backup_bp.route('/api/mount/<int:job_id>/download')
+@login_required
+def api_download_file(job_id):
+    """Download a file from a mounted archive."""
+    job = Job.query.get_or_404(job_id)
+    
+    # Security check
+    if job.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get path parameter
+    path_param = request.args.get('path', '')
+    
+    if not path_param:
+        return jsonify({'error': 'No file path specified'}), 400
+    
+    # Get mount point from job metadata
+    metadata = job.get_metadata() or {}
+    mount_point = metadata.get('mount_point')
+    
+    if not mount_point:
+        return jsonify({'error': 'Mount point not found'}), 404
+    
+    # Check if the mount is still active
+    if not check_mount_status(mount_point):
+        return jsonify({'error': 'Archive is not mounted'}), 400
+    
+    # Construct the full path
+    full_path = os.path.join(mount_point, path_param.lstrip('/'))
+    
+    # Normalize the path to prevent directory traversal attacks
+    full_path = os.path.normpath(full_path)
+    
+    # Make sure the path is still within the mount point
+    if not full_path.startswith(mount_point):
+        return jsonify({'error': 'Invalid path'}), 403
+    
+    # Check if the path exists
+    if not os.path.exists(full_path):
+        return jsonify({'error': 'Path not found'}), 404
+    
+    # If it's a file, serve it directly
+    if os.path.isfile(full_path):
+        # Get the file name for the download
+        filename = os.path.basename(full_path)
+        
+        # Serve the file
+        return send_from_directory(
+            os.path.dirname(full_path),
+            filename,
+            as_attachment=True
+        )
+    
+    # If it's a directory, create a zip file
+    elif os.path.isdir(full_path):
+        import zipfile
+        import io
+        import tempfile
+        from datetime import datetime
+        
+        # Create a unique filename for the zip
+        dir_name = os.path.basename(full_path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_filename = f"{dir_name}_{timestamp}.zip"
+        
+        # Create a temporary file for the zip
+        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_zip.close()
+        
+        try:
+            # Create the zip file
+            with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Walk through directory and add files
+                for root, dirs, files in os.walk(full_path):
+                    # Calculate the relative path
+                    rel_path = os.path.relpath(root, full_path)
+                    if rel_path == '.':
+                        rel_path = ''
+                    
+                    # Add files
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arc_path = os.path.join(rel_path, file)
+                        zipf.write(file_path, arcname=arc_path)
+            
+            # Send the zip file
+            return send_file(
+                temp_zip.name,
+                as_attachment=True,
+                download_name=zip_filename,
+                mimetype='application/zip'
+            )
+        
+        except Exception as e:
+            # Clean up the temporary file
+            if os.path.exists(temp_zip.name):
+                os.unlink(temp_zip.name)
+            
+            return jsonify({'error': f'Error creating zip file: {str(e)}'}), 500
+        
+    return jsonify({'error': 'Unsupported file type'}), 400
+
+@backup_bp.route('/api/mount/<int:job_id>/download-multiple', methods=['POST'])
+@login_required
+def api_download_multiple(job_id):
+    """Download multiple files or folders from a mounted archive as a zip."""
+    job = Job.query.get_or_404(job_id)
+    
+    # Security check
+    if job.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get request data
+    data = request.get_json()
+    if not data or not isinstance(data.get('paths'), list) or not data.get('paths'):
+        return jsonify({'error': 'No paths specified'}), 400
+    
+    paths = data.get('paths', [])
+    base_path = data.get('base_path', '/')
+    
+    # Get mount point from job metadata
+    metadata = job.get_metadata() or {}
+    mount_point = metadata.get('mount_point')
+    
+    if not mount_point:
+        return jsonify({'error': 'Mount point not found'}), 404
+    
+    # Check if the mount is still active
+    if not check_mount_status(mount_point):
+        return jsonify({'error': 'Archive is not mounted'}), 400
+    
+    # Create a temporary file for the zip
+    import zipfile
+    import tempfile
+    from datetime import datetime
+    
+    # Create a unique filename for the zip
+    dir_name = os.path.basename(base_path) if base_path != '/' else 'archive'
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_filename = f"{dir_name}_selected_{timestamp}.zip"
+    
+    # Create a temporary file
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    temp_zip.close()
+    
+    try:
+        # Create a ZipFile object
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add each requested path to the zip
+            for path_param in paths:
+                # Construct the full path
+                full_path = os.path.join(mount_point, path_param.lstrip('/'))
+                
+                # Normalize the path to prevent directory traversal attacks
+                full_path = os.path.normpath(full_path)
+                
+                # Make sure the path is still within the mount point
+                if not full_path.startswith(mount_point):
+                    continue
+                
+                # Skip if path doesn't exist
+                if not os.path.exists(full_path):
+                    continue
+                
+                # Get the relative path for the archive
+                rel_base = os.path.commonpath([full_path, mount_point])
+                rel_path = os.path.relpath(full_path, rel_base)
+                
+                # Add the file or directory to the zip
+                if os.path.isfile(full_path):
+                    # For files, just add them directly
+                    zipf.write(full_path, arcname=os.path.basename(path_param))
+                elif os.path.isdir(full_path):
+                    # For directories, walk and add all contents
+                    for root, dirs, files in os.walk(full_path):
+                        # Calculate the relative path within the zip
+                        zip_root = os.path.relpath(root, os.path.dirname(full_path))
+                        
+                        # Add all files in this directory
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            
+                            # Use directory name as the base in the zip
+                            if zip_root == '.':
+                                arc_path = os.path.join(os.path.basename(full_path), file)
+                            else:
+                                arc_path = os.path.join(os.path.basename(full_path), zip_root, file)
+                            
+                            zipf.write(file_path, arcname=arc_path)
+        
+        # Create a temporary job to track this download
+        download_job = Job(
+            job_type='download',
+            status='success',
+            repository_id=job.repository_id,
+            user_id=current_user.id,
+            timestamp=datetime.utcnow()
+        )
+        
+        # Store the temporary file info in job metadata
+        download_metadata = {
+            'temp_file': temp_zip.name,
+            'filename': zip_filename,
+            'expiry': (datetime.utcnow() + timedelta(hours=1)).isoformat()
+        }
+        download_job.set_metadata(download_metadata)
+        
+        db.session.add(download_job)
+        db.session.commit()
+        
+        # Return a URL to download the zip
+        return jsonify({
+            'status': 'success',
+            'download_url': url_for('backup.api_get_download', job_id=download_job.id)
+        })
+    
+    except Exception as e:
+        # Clean up the temporary file
+        if os.path.exists(temp_zip.name):
+            os.unlink(temp_zip.name)
+            
+        return jsonify({'error': f'Error creating download: {str(e)}'}), 500
+
+@backup_bp.route('/api/download/<int:job_id>')
+@login_required
+def api_get_download(job_id):
+    """Get a prepared download file."""
+    job = Job.query.get_or_404(job_id)
+    
+    # Security check
+    if job.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    # Check if this is a download job
+    if job.job_type != 'download':
+        return jsonify({'error': 'Not a download job'}), 400
+    
+    # Get download info from job metadata
+    metadata = job.get_metadata() or {}
+    temp_file = metadata.get('temp_file')
+    filename = metadata.get('filename')
+    
+    if not temp_file or not filename:
+        return jsonify({'error': 'Download information not found'}), 404
+    
+    # Check if the file exists
+    if not os.path.exists(temp_file):
+        return jsonify({'error': 'Download file not found'}), 404
+    
+    # Check if the download has expired
+    expiry = metadata.get('expiry')
+    if expiry:
+        try:
+            expiry_time = datetime.fromisoformat(expiry)
+            if datetime.utcnow() > expiry_time:
+                # Clean up expired file
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
+                return jsonify({'error': 'Download has expired'}), 410
+        except:
+            pass
+    
+    try:
+        # Serve the file
+        return send_file(
+            temp_file,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/zip'
+        )
+    finally:
+        # Schedule cleanup after sending
+        # We don't delete immediately to allow the file to be sent
+        @after_this_request
+        def cleanup(response):
+            try:
+                # Mark the job as completed
+                job.status = 'completed'
+                job.completed_at = datetime.utcnow()
+                db.session.commit()
+                
+                # Schedule file deletion (can't delete immediately as it's being served)
+                def delayed_delete():
+                    time.sleep(60)  # Wait a minute before deleting
+                    try:
+                        if os.path.exists(temp_file):
+                            os.unlink(temp_file)
+                    except:
+                        pass
+                
+                Thread(target=delayed_delete).start()
+            except:
+                pass
+            return response
 
 @backup_bp.route('/api/jobs/<int:job_id>/cancel', methods=['POST'])
 @login_required
@@ -1044,3 +1572,109 @@ def generateFrequencyChartHtml(days, day_counts, hour_counts):
         });
     </script>
     """
+
+# Admin routes for mount management
+@backup_bp.route('/admin/mounts')
+@login_required
+def admin_mounts():
+    """Admin view for managing archive mounts."""
+    # Check if user is admin (for a real app, you'd have proper admin checks)
+    if not hasattr(current_user, 'is_admin') or not current_user.is_admin:
+        flash('You do not have permission to access this page.', 'danger')
+        return redirect(url_for('backup.list_repositories'))
+    
+    active_mounts = get_all_active_mounts()
+    orphaned_mounts = get_orphaned_mounts(max_age_hours=24)
+    system_mounts = find_borg_mounts()
+    
+    return render_template(
+        'backup/admin_mounts.html',
+        active_mounts=active_mounts,
+        orphaned_mounts=orphaned_mounts,
+        system_mounts=system_mounts
+    )
+
+@backup_bp.route('/admin/mounts/unmount/<int:job_id>', methods=['POST'])
+@login_required
+def admin_unmount(job_id):
+    """Unmount an archive from admin interface."""
+    # Check if user is admin
+    if not hasattr(current_user, 'is_admin') or not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
+    
+    # Find the mount job
+    mount_job = Job.query.get_or_404(job_id)
+    
+    # Create an unmount job
+    unmount_job = Job(
+        job_type='unmount',
+        status='pending',
+        repository_id=mount_job.repository_id,
+        user_id=mount_job.user_id,
+        timestamp=datetime.utcnow()
+    )
+    
+    # Copy the mount point from the original job
+    metadata = mount_job.get_metadata() or {}
+    mount_point = metadata.get('mount_point')
+    
+    if not mount_point:
+        return jsonify({'success': False, 'message': 'Mount point not found in job metadata'}), 400
+    
+    unmount_metadata = {
+        'mount_job_id': job_id,
+        'mount_point': mount_point,
+        'automated': True,
+        'reason': 'Admin unmount'
+    }
+    unmount_job.set_metadata(unmount_metadata)
+    
+    db.session.add(unmount_job)
+    db.session.commit()
+    
+    # Start the unmount process
+    unmount_archive(unmount_job.id, current_app._get_current_object())
+    
+    return jsonify({
+        'success': True, 
+        'message': f'Unmount job {unmount_job.id} started', 
+        'unmount_job_id': unmount_job.id
+    })
+
+@backup_bp.route('/admin/mounts/cleanup', methods=['POST'])
+@login_required
+def admin_cleanup_mounts():
+    """Clean up orphaned mounts from admin interface."""
+    # Check if user is admin
+    if not hasattr(current_user, 'is_admin') or not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
+    
+    # Get parameters
+    hours = request.form.get('hours', 24, type=int)
+    force = request.form.get('force', 'false').lower() == 'true'
+    
+    # Unmount orphaned mounts
+    results = unmount_orphaned(max_age_hours=hours, force=force)
+    
+    return jsonify({
+        'success': True,
+        'message': f'Processed {len(results)} orphaned mounts',
+        'results': results
+    })
+
+@backup_bp.route('/admin/mounts/force-unmount', methods=['POST'])
+@login_required
+def admin_force_unmount():
+    """Force unmount all system Borg mounts."""
+    # Check if user is admin
+    if not hasattr(current_user, 'is_admin') or not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
+    
+    # Force unmount all mounts
+    results = force_unmount_all()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Processed {len(results)} mounts',
+        'results': results
+    })

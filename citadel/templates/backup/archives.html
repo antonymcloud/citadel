@@ -39,6 +39,60 @@
         position: relative;
         min-height: 200px;
     }
+    /* File browser styles */
+    .file-browser {
+        height: 500px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+    .file-list-item {
+        padding: 8px 12px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+    }
+    .file-list-item:hover {
+        background-color: #f8f9fa;
+    }
+    .file-list-item.directory {
+        font-weight: bold;
+    }
+    .file-list-item i {
+        margin-right: 8px;
+    }
+    .file-list-item.selected {
+        background-color: #e2f0ff;
+    }
+    .file-list-item .file-select {
+        margin-right: 10px;
+    }
+    .file-item-name {
+        flex-grow: 1;
+    }
+    .breadcrumb-item a {
+        cursor: pointer;
+    }
+    .path-breadcrumb {
+        background-color: #f8f9fa;
+        padding: 8px 12px;
+        border-radius: 0.25rem;
+        margin-bottom: 15px;
+    }
+    .file-actions {
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .file-selection-controls {
+        display: flex;
+        gap: 10px;
+    }
+    .download-selected-btn {
+        margin-left: auto;
+    }
 </style>
 {% endblock %}
 
@@ -51,7 +105,7 @@
                 <i class="fas fa-sync-alt me-2"></i>Refresh Archives
             </button>
             <a href="{{ url_for('backup.create_backup') }}?repo_id={{ repo.id }}" class="btn btn-success">
-                <i class="fas fa-plus-circle me-2"></i>Create Backup
+                <i class="fas fa-plus me-2"></i>Create Backup
             </a>
             <a href="{{ url_for('backup.repository_detail', repo_id=repo.id) }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Back to Repository
@@ -61,67 +115,56 @@
     
     <div class="card shadow mb-4">
         <div class="card-header bg-primary text-white">
-            <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Repository Archives</h5>
-                {% if list_job %}
-                <small class="text-white-50">Last updated: {{ list_job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
-                {% endif %}
-            </div>
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Available Archives</h5>
         </div>
         <div class="card-body">
-            <div class="table-responsive" id="archivesTableContainer">
-                {% if archives %}
+            <div class="table-responsive">
                 <table class="table table-hover table-archives" id="archivesTable">
                     <thead>
                         <tr>
-                            <th>Archive Name</th>
-                            <th>Created</th>
+                            <th>Name</th>
+                            <th>Time</th>
+                            <th>Size</th>
+                            <th>Comment</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="archivesList">
-                        {% for archive in archives %}
-                        <tr>
-                            <td>{{ archive.name }}</td>
-                            <td class="archive-time">
-                                {% if archive.time %}
-                                {{ archive.time|datetime }}
-                                {% else %}
-                                Unknown
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-info view-archive" data-archive="{{ archive.name }}">
-                                        <i class="fas fa-search"></i>
-                                    </button>
-                                    <button class="btn btn-warning extract-archive" data-archive="{{ archive.name }}">
-                                        <i class="fas fa-download"></i>
-                                    </button>
-                                    <button class="btn btn-danger delete-archive" data-archive="{{ archive.name }}">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
+                    <tbody>
+                        {% if archives %}
+                            {% for archive in archives %}
+                                <tr>
+                                    <td>{{ archive.name }}</td>
+                                    <td class="archive-time">{{ archive.time }}</td>
+                                    <td class="archive-size">{{ archive.size }}</td>
+                                    <td class="archive-comment">{{ archive.comment }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-info view-archive" data-archive="{{ archive.name }}">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-primary mount-archive" data-archive="{{ archive.name }}">
+                                                <i class="fas fa-folder-open"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-danger delete-archive" data-archive="{{ archive.name }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center">No archives found in this repository.</td>
+                            </tr>
+                        {% endif %}
                     </tbody>
                 </table>
-                {% else %}
-                <div class="text-center p-4" id="archivesList">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>No archives found.</strong> 
-                        <p>This could be because:</p>
-                        <ul class="text-start">
-                            <li>No backups have been created yet for this repository</li>
-                            <li>The repository path might be incorrect</li>
-                            <li>There was an error accessing the repository</li>
-                        </ul>
-                        <p>Click "Refresh Archives" to check for archives or "Create Backup" to make your first backup.</p>
+                <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
+                    <p class="mb-0">Loading archives...</p>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -135,55 +178,67 @@
                 <h5 class="modal-title" id="archiveDetailModalLabel">Archive Details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="archiveDetailContent">
+            <div class="modal-body">
                 <div class="text-center">
-                    <div class="spinner-border" role="status">
+                    <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mt-2">Loading archive details...</p>
+                    <p>Loading archive details...</p>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Extract Archive Modal -->
-<div class="modal fade" id="extractArchiveModal" tabindex="-1" aria-labelledby="extractArchiveModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+<!-- Mount Archive Modal -->
+<div class="modal fade" id="mountArchiveModal" tabindex="-1" aria-labelledby="mountArchiveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="extractArchiveModalLabel">Extract Archive</h5>
+                <h5 class="modal-title" id="mountArchiveModalLabel">Browse Archive</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="extractForm">
-                    <input type="hidden" id="extractArchiveName" name="archive_name">
-                    <div class="mb-3">
-                        <label for="extractPath" class="form-label">Destination Path</label>
-                        <input type="text" class="form-control" id="extractPath" name="extract_path" required>
-                        <div class="form-text">Path where files will be extracted</div>
+                <div class="mount-loading text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="extractAll" name="extract_all">
-                            <label class="form-check-label" for="extractAll">
-                                Extract all files
-                            </label>
+                    <p>Mounting archive... This may take a moment.</p>
+                </div>
+                
+                <div class="file-browser-container" style="display: none;">
+                    <nav class="path-breadcrumb" aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a data-path="/">Root</a></li>
+                        </ol>
+                    </nav>
+                    
+                    <div class="file-actions">
+                        <div class="file-selection-controls">
+                            <button class="btn btn-sm btn-outline-secondary select-all-btn">
+                                <i class="fas fa-check-square me-1"></i> Select All
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary deselect-all-btn">
+                                <i class="fas fa-square me-1"></i> Deselect All
+                            </button>
+                        </div>
+                        <button class="btn btn-sm btn-primary download-selected-btn" disabled>
+                            <i class="fas fa-download me-1"></i> Download Selected
+                        </button>
+                    </div>
+                    
+                    <div class="file-browser">
+                        <div class="list-group file-list">
+                            <!-- File list will be populated here -->
                         </div>
                     </div>
-                    <div class="mb-3" id="extractPathsGroup">
-                        <label for="extractPaths" class="form-label">Files/Directories to Extract (one per line)</label>
-                        <textarea class="form-control" id="extractPaths" name="extract_paths" rows="3"></textarea>
-                        <div class="form-text">Leave empty to extract all files</div>
-                    </div>
-                </form>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="startExtract">Extract</button>
+                <button type="button" class="btn btn-secondary" id="unmountArchiveBtn" style="display: none;">
+                    <i class="fas fa-eject me-2"></i>Unmount Archive
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -193,13 +248,13 @@
 <div class="modal fade" id="deleteArchiveModal" tabindex="-1" aria-labelledby="deleteArchiveModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteArchiveModalLabel">Confirm Delete</h5>
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteArchiveModalLabel">Delete Archive</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete archive <strong id="deleteArchiveName"></strong>?</p>
-                <p><strong>Warning:</strong> This action cannot be undone.</p>
+                <p>Are you sure you want to delete the archive <strong id="deleteArchiveName"></strong>?</p>
+                <p class="text-danger"><strong>Warning:</strong> This action cannot be undone.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -214,163 +269,562 @@
 {{ super() }}
 <script>
     $(document).ready(function() {
+        // Current mount job ID
+        let currentMountJobId = null;
+        let currentPath = '/';
+        
         // Format file sizes
         function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
+            if (bytes === null || bytes === undefined) return "Unknown";
+            if (bytes === 0) return "0 Bytes";
             
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            const units = ["Bytes", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
             
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + " " + units[i];
         }
         
         // Format dates
         function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleString();
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleString();
+            } catch (e) {
+                return dateString;
+            }
         }
         
         // Display archives in the table
         function displayArchives(archives) {
-            if (!archives || archives.length === 0) {
-                $('#archivesList').html('<tr><td colspan="5" class="text-center">No archives found</td></tr>');
-                return;
+            const tableBody = $('#archivesTable tbody');
+            tableBody.empty();
+            
+            if (archives && archives.length > 0) {
+                archives.forEach(function(archive) {
+                    tableBody.append(`
+                        <tr>
+                            <td>${archive.name}</td>
+                            <td class="archive-time">${archive.time || 'Unknown'}</td>
+                            <td class="archive-size">${archive.size || 'Unknown'}</td>
+                            <td class="archive-comment">${archive.comment || ''}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-info view-archive" data-archive="${archive.name}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-primary mount-archive" data-archive="${archive.name}">
+                                        <i class="fas fa-folder-open"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger delete-archive" data-archive="${archive.name}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `);
+                });
+            } else {
+                tableBody.append(`
+                    <tr>
+                        <td colspan="5" class="text-center">No archives found in this repository.</td>
+                    </tr>
+                `);
             }
-            
-            let html = '';
-            archives.forEach(function(archive) {
-                html += `
-                <tr>
-                    <td>${archive.name}</td>
-                    <td class="archive-time">${archive.time ? formatDate(archive.time) : 'Unknown'}</td>
-                    <td class="archive-size">${archive.size ? formatFileSize(archive.size) : 'Unknown'}</td>
-                    <td class="archive-comment">${archive.comment || 'No comment'}</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-info view-archive" data-archive="${archive.name}">
-                                <i class="fas fa-search"></i>
-                            </button>
-                            <button class="btn btn-warning extract-archive" data-archive="${archive.name}">
-                                <i class="fas fa-download"></i>
-                            </button>
-                            <button class="btn btn-danger delete-archive" data-archive="${archive.name}">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-                `;
-            });
-            
-            $('#archivesList').html(html);
         }
         
         // Show error message
         function showError(message) {
-            $('#archivesList').html(`
-                <tr>
-                    <td colspan="5" class="text-center text-danger">
-                        <i class="fas fa-exclamation-circle me-2"></i>${message}
-                    </td>
-                </tr>
+            $('body').append(`
+                <div class="alert alert-danger alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                    <i class="fas fa-exclamation-circle me-2"></i>${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             `);
         }
         
         // Poll a job for archives data
         function pollJobForArchives(jobId) {
-            // Add loading overlay
-            $('#archivesTableContainer').append(`
-                <div class="loading-overlay">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2">Loading archives...</p>
-                </div>
-            `);
+            const loadingOverlay = $('#loadingOverlay');
+            loadingOverlay.show();
             
-            var pollInterval = setInterval(function() {
+            const pollInterval = setInterval(function() {
                 $.getJSON("{{ url_for('backup.api_get_job_status', job_id=0) }}".replace('0', jobId), function(data) {
                     if (data.status === 'success') {
                         clearInterval(pollInterval);
-                        $('.loading-overlay').remove();
+                        loadingOverlay.hide();
                         
-                        // Get archives from job metadata
+                        // Display archives
                         if (data.metadata && data.metadata.archives) {
                             displayArchives(data.metadata.archives);
                         } else {
-                            showError('No archives found');
+                            showError("No archives found in the repository.");
                         }
                     } else if (data.status === 'failed') {
                         clearInterval(pollInterval);
-                        $('.loading-overlay').remove();
-                        showError('Failed to list archives: ' + (data.error || 'Unknown error'));
+                        loadingOverlay.hide();
+                        showError("Failed to list archives: " + (data.error || "Unknown error"));
                     }
-                    // If still running, continue polling
                 }).fail(function() {
                     clearInterval(pollInterval);
-                    $('.loading-overlay').remove();
-                    showError('Failed to get job status');
+                    loadingOverlay.hide();
+                    showError("Failed to check job status.");
                 });
-            }, 1000); // Poll every second
+            }, 1000);
         }
         
         // Refresh archives list
         $('#refreshArchives').click(function() {
-            $.getJSON("{{ url_for('backup.list_archives', repo_id=repo.id) }}", function(data) {
-                if (data.status === 'running') {
-                    // We got a job ID - start polling for results
-                    pollJobForArchives(data.job_id);
-                } else {
-                    // We got immediate results (legacy mode)
-                    displayArchives(data);
+            const loadingOverlay = $('#loadingOverlay');
+            loadingOverlay.show();
+            
+            $.ajax({
+                url: "{{ url_for('backup.list_archives', repo_id=repo.id) }}",
+                type: 'GET',
+                success: function(data) {
+                    if (data.job_id) {
+                        pollJobForArchives(data.job_id);
+                    } else {
+                        loadingOverlay.hide();
+                        showError("Failed to create list job.");
+                    }
+                },
+                error: function() {
+                    loadingOverlay.hide();
+                    showError("Failed to refresh archives list.");
                 }
-            }).fail(function() {
-                showError('Failed to communicate with server');
             });
         });
         
         // Handle archive view button clicks
         $(document).on('click', '.view-archive', function() {
             const archiveName = $(this).data('archive');
-            $('#archiveDetailModalLabel').text('Archive: ' + archiveName);
-            $('#archiveDetailModal').modal('show');
+            const modal = $('#archiveDetailModal');
             
-            // Load archive details here
-            $('#archiveDetailContent').html(`
+            modal.find('.modal-title').text(`Archive Details: ${archiveName}`);
+            modal.find('.modal-body').html(`
                 <div class="text-center">
-                    <div class="spinner-border" role="status">
+                    <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mt-2">Loading archive details...</p>
+                    <p>Loading archive details...</p>
                 </div>
             `);
             
-            // TODO: Implement API endpoint to get archive details
-            // For now, just show a placeholder
+            modal.modal('show');
+            
+            // TODO: Add API endpoint to get archive details
             setTimeout(function() {
-                $('#archiveDetailContent').html(`
+                modal.find('.modal-body').html(`
                     <div class="alert alert-info">
-                        <p>Archive detail functionality will be implemented in a future update.</p>
+                        <i class="fas fa-info-circle me-2"></i>Archive detail view is not fully implemented yet.
                     </div>
+                    <h5>Archive Information</h5>
+                    <dl class="row">
+                        <dt class="col-sm-3">Name:</dt>
+                        <dd class="col-sm-9">${archiveName}</dd>
+                    </dl>
                 `);
             }, 1000);
         });
         
-        // Handle extract archive button clicks
-        $(document).on('click', '.extract-archive', function() {
+        // Handle mount archive button clicks
+        $(document).on('click', '.mount-archive', function() {
             const archiveName = $(this).data('archive');
-            $('#extractArchiveModalLabel').text('Extract: ' + archiveName);
-            $('#extractArchiveName').val(archiveName);
-            $('#extractArchiveModal').modal('show');
+            const modal = $('#mountArchiveModal');
+            
+            // Reset the file browser
+            modal.find('.modal-title').text(`Browse Archive: ${archiveName}`);
+            modal.find('.mount-loading').show();
+            modal.find('.file-browser-container').hide();
+            modal.find('#unmountArchiveBtn').hide();
+            modal.find('.file-list').empty();
+            currentPath = '/';
+            updateBreadcrumbs(currentPath);
+            
+            modal.modal('show');
+            
+            // Start the mounting process
+            $.ajax({
+                url: "{{ url_for('backup.api_mount_archive', repo_id=repo.id) }}",
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    archive_name: archiveName
+                }),
+                success: function(data) {
+                    if (data.status === 'mounting' || data.status === 'already_mounted') {
+                        currentMountJobId = data.job_id;
+                        
+                        // Poll for mount status
+                        pollMountStatus(currentMountJobId);
+                    } else {
+                        modal.find('.mount-loading').html(`
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i>Failed to mount archive.
+                            </div>
+                        `);
+                    }
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Failed to mount archive';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMsg = response.error || errorMsg;
+                    } catch (e) {
+                        errorMsg = `Error: ${xhr.status} ${xhr.statusText}`;
+                    }
+                    
+                    modal.find('.mount-loading').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>${errorMsg}
+                        </div>
+                    `);
+                }
+            });
         });
         
-        // Toggle extract paths textarea based on "Extract all" checkbox
-        $('#extractAll').change(function() {
+        // Poll for mount status
+        function pollMountStatus(jobId) {
+            const checkInterval = setInterval(function() {
+                $.getJSON("{{ url_for('backup.api_mount_status', job_id=0) }}".replace('0', jobId), function(data) {
+                    if (data.status === 'success' && data.mount_status === 'mounted') {
+                        clearInterval(checkInterval);
+                        
+                        // Show file browser and load root directory
+                        $('#mountArchiveModal').find('.mount-loading').hide();
+                        $('#mountArchiveModal').find('.file-browser-container').show();
+                        $('#mountArchiveModal').find('#unmountArchiveBtn').show();
+                        
+                        // Load root directory
+                        loadDirectory(jobId, '/');
+                    } else if (data.status === 'failed') {
+                        clearInterval(checkInterval);
+                        
+                        $('#mountArchiveModal').find('.mount-loading').html(`
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i>Failed to mount archive: ${data.error || 'Unknown error'}
+                            </div>
+                        `);
+                    }
+                }).fail(function() {
+                    clearInterval(checkInterval);
+                    
+                    $('#mountArchiveModal').find('.mount-loading').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>Failed to check mount status.
+                        </div>
+                    `);
+                });
+            }, 1000);
+        }
+        
+        // Function to browse a mounted archive
+        function loadDirectory(jobId, path) {
+            currentPath = path;
+            updateBreadcrumbs(path);
+            
+            const fileList = $('#mountArchiveModal').find('.file-list');
+            fileList.html(`
+                <div class="text-center p-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading directory contents...</p>
+                </div>
+            `);
+            
+            // Reset selection state
+            updateSelectionState();
+            
+            $.getJSON("{{ url_for('backup.api_browse_mount', job_id=0) }}".replace('0', jobId) + `?path=${encodeURIComponent(path)}`, function(data) {
+                if (data.status === 'success') {
+                    fileList.empty();
+                    
+                    // Add parent directory link if not at root
+                    if (path !== '/') {
+                        const parentPath = path.split('/').slice(0, -1).join('/') || '/';
+                        fileList.append(`
+                            <div class="file-list-item directory" data-path="${parentPath}">
+                                <i class="fas fa-level-up-alt"></i>
+                                <span class="file-item-name">..</span>
+                            </div>
+                        `);
+                    }
+                    
+                    // Add directories and files
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(function(item) {
+                            const itemPath = path === '/' ? `/${item.name}` : `${path}/${item.name}`;
+                            
+                            if (item.type === 'directory') {
+                                fileList.append(`
+                                    <div class="file-list-item directory" data-path="${itemPath}" data-type="directory" data-name="${item.name}">
+                                        <input type="checkbox" class="form-check-input file-select">
+                                        <i class="fas fa-folder"></i>
+                                        <span class="file-item-name">${item.name}</span>
+                                        <button class="btn btn-sm btn-outline-primary download-folder-btn" title="Download folder">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                    </div>
+                                `);
+                            } else {
+                                fileList.append(`
+                                    <div class="file-list-item file" data-path="${itemPath}" data-type="file" data-name="${item.name}" data-size="${item.size || 0}">
+                                        <input type="checkbox" class="form-check-input file-select">
+                                        <i class="fas fa-file"></i>
+                                        <span class="file-item-name">${item.name}</span>
+                                        <span class="badge bg-secondary">${formatFileSize(item.size)}</span>
+                                    </div>
+                                `);
+                            }
+                        });
+                    } else {
+                        fileList.append(`
+                            <div class="text-center p-3">
+                                <i class="fas fa-folder-open mb-2" style="font-size: 2rem;"></i>
+                                <p>This directory is empty.</p>
+                            </div>
+                        `);
+                    }
+                } else {
+                    fileList.html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>${data.error || 'Failed to load directory contents.'}
+                        </div>
+                    `);
+                }
+            }).fail(function() {
+                fileList.html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>Failed to load directory contents.
+                    </div>
+                `);
+            });
+        }
+        
+        // Update breadcrumbs
+        function updateBreadcrumbs(path) {
+            const breadcrumb = $('#mountArchiveModal').find('.breadcrumb');
+            breadcrumb.empty();
+            
+            // Always add root
+            breadcrumb.append(`<li class="breadcrumb-item"><a data-path="/">Root</a></li>`);
+            
+            // Add path components
+            if (path !== '/') {
+                const parts = path.split('/').filter(p => p);
+                let currentPath = '';
+                
+                parts.forEach(function(part, index) {
+                    currentPath += '/' + part;
+                    
+                    if (index === parts.length - 1) {
+                        breadcrumb.append(`<li class="breadcrumb-item active">${part}</li>`);
+                    } else {
+                        breadcrumb.append(`<li class="breadcrumb-item"><a data-path="${currentPath}">${part}</a></li>`);
+                    }
+                });
+            }
+        }
+        
+        // Handle directory click events (navigation)
+        $(document).on('click', '.file-list-item.directory .file-item-name', function() {
+            const path = $(this).closest('.file-list-item').data('path');
+            loadDirectory(currentMountJobId, path);
+        });
+        
+        // Handle file checkbox selection
+        $(document).on('change', '.file-select', function(e) {
+            e.stopPropagation();
+            const item = $(this).closest('.file-list-item');
+            
             if ($(this).is(':checked')) {
-                $('#extractPathsGroup').hide();
+                item.addClass('selected');
             } else {
-                $('#extractPathsGroup').show();
+                item.removeClass('selected');
+            }
+            
+            updateSelectionState();
+        });
+        
+        // Handle file item click (select/deselect)
+        $(document).on('click', '.file-list-item', function(e) {
+            // Don't trigger for clicks on buttons, checkboxes or parent directory
+            if (
+                $(e.target).is('button, input, i.fa-level-up-alt, .download-folder-btn') || 
+                $(e.target).closest('.download-folder-btn').length ||
+                $(this).find('i.fa-level-up-alt').length
+            ) {
+                return;
+            }
+            
+            // Toggle checkbox
+            const checkbox = $(this).find('.file-select');
+            if (checkbox.length) {
+                checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+            }
+        });
+        
+        // Handle file download click
+        $(document).on('click', '.file-list-item.file .file-item-name', function(e) {
+            e.stopPropagation();
+            const path = $(this).closest('.file-list-item').data('path');
+            downloadFile(path);
+        });
+        
+        // Handle folder download button click
+        $(document).on('click', '.download-folder-btn', function(e) {
+            e.stopPropagation();
+            const path = $(this).closest('.file-list-item').data('path');
+            downloadFile(path);
+        });
+        
+        // Select all button
+        $('.select-all-btn').click(function() {
+            $('.file-list-item:not(:has(i.fa-level-up-alt)) .file-select').prop('checked', true).trigger('change');
+        });
+        
+        // Deselect all button
+        $('.deselect-all-btn').click(function() {
+            $('.file-list-item .file-select').prop('checked', false).trigger('change');
+        });
+        
+        // Download selected button
+        $('.download-selected-btn').click(function() {
+            const selectedItems = $('.file-list-item.selected');
+            
+            if (selectedItems.length === 0) {
+                return;
+            }
+            
+            if (selectedItems.length === 1) {
+                // Just download the single item
+                const path = selectedItems.first().data('path');
+                downloadFile(path);
+                return;
+            }
+            
+            // Multiple items - create a zip with selected items
+            const paths = selectedItems.map(function() {
+                return $(this).data('path');
+            }).get();
+            
+            downloadMultipleItems(paths);
+        });
+        
+        // Update selection state UI
+        function updateSelectionState() {
+            const selectedCount = $('.file-list-item.selected').length;
+            const downloadBtn = $('.download-selected-btn');
+            
+            if (selectedCount > 0) {
+                downloadBtn.prop('disabled', false).html(`
+                    <i class="fas fa-download me-1"></i> Download Selected (${selectedCount})
+                `);
+            } else {
+                downloadBtn.prop('disabled', true).html(`
+                    <i class="fas fa-download me-1"></i> Download Selected
+                `);
+            }
+        }
+        
+        // Download a single file or folder
+        function downloadFile(path) {
+            const downloadUrl = "{{ url_for('backup.api_download_file', job_id=0) }}".replace('0', currentMountJobId) + `?path=${encodeURIComponent(path)}`;
+            window.open(downloadUrl, '_blank');
+        }
+        
+        // Download multiple items as a zip
+        function downloadMultipleItems(paths) {
+            // Show loading indicator
+            const downloadBtn = $('.download-selected-btn');
+            const btnText = downloadBtn.html();
+            downloadBtn.prop('disabled', true).html(`
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Preparing download...
+            `);
+            
+            $.ajax({
+                url: "{{ url_for('backup.api_download_multiple', job_id=0) }}".replace('0', currentMountJobId),
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    paths: paths,
+                    base_path: currentPath
+                }),
+                success: function(data) {
+                    downloadBtn.prop('disabled', false).html(btnText);
+                    
+                    if (data.status === 'success' && data.download_url) {
+                        window.open(data.download_url, '_blank');
+                    } else {
+                        showError(data.error || 'Failed to prepare download');
+                    }
+                },
+                error: function(xhr) {
+                    downloadBtn.prop('disabled', false).html(btnText);
+                    
+                    let errorMsg = 'Failed to prepare download';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMsg = response.error || errorMsg;
+                    } catch (e) {
+                        errorMsg = `Error: ${xhr.status} ${xhr.statusText}`;
+                    }
+                    
+                    showError(errorMsg);
+                }
+            });
+        }
+        
+        // Handle breadcrumb clicks
+        $(document).on('click', '.breadcrumb-item a', function() {
+            const path = $(this).data('path');
+            loadDirectory(currentMountJobId, path);
+        });
+        
+        // Handle unmount button click
+        $('#unmountArchiveBtn').click(function() {
+            if (!currentMountJobId) return;
+            
+            $(this).prop('disabled', true).html(`
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Unmounting...
+            `);
+            
+            $.ajax({
+                url: "{{ url_for('backup.api_unmount_archive', job_id=0) }}".replace('0', currentMountJobId),
+                type: 'POST',
+                success: function(data) {
+                    $('#unmountArchiveBtn').html(`
+                        <i class="fas fa-check me-2"></i>Unmounted
+                    `);
+                    
+                    setTimeout(function() {
+                        $('#mountArchiveModal').modal('hide');
+                    }, 1500);
+                },
+                error: function() {
+                    $('#unmountArchiveBtn').prop('disabled', false).html(`
+                        <i class="fas fa-eject me-2"></i>Unmount Archive
+                    `);
+                    
+                    showError("Failed to unmount archive.");
+                }
+            });
+        });
+        
+        // Clean up when mount modal is hidden
+        $('#mountArchiveModal').on('hidden.bs.modal', function() {
+            if (currentMountJobId) {
+                // Try to unmount if not already unmounted
+                $.ajax({
+                    url: "{{ url_for('backup.api_unmount_archive', job_id=0) }}".replace('0', currentMountJobId),
+                    type: 'POST',
+                    complete: function() {
+                        currentMountJobId = null;
+                    }
+                });
             }
         });
         
@@ -378,36 +832,25 @@
         $(document).on('click', '.delete-archive', function() {
             const archiveName = $(this).data('archive');
             $('#deleteArchiveName').text(archiveName);
-            $('#deleteArchiveModal').modal('show');
-            
-            // Store the archive name for the confirmation button
             $('#confirmDelete').data('archive', archiveName);
+            $('#deleteArchiveModal').modal('show');
         });
         
         // Handle delete confirmation
         $('#confirmDelete').click(function() {
             const archiveName = $(this).data('archive');
             
-            // TODO: Implement API endpoint to delete archive
-            // For now, just show a placeholder alert
-            alert('Delete functionality will be implemented in a future update.');
+            // TODO: Add API endpoint to delete archive
             $('#deleteArchiveModal').modal('hide');
-        });
-        
-        // Handle extract submission
-        $('#startExtract').click(function() {
-            // TODO: Implement API endpoint to extract archive
-            // For now, just show a placeholder alert
-            alert('Extract functionality will be implemented in a future update.');
-            $('#extractArchiveModal').modal('hide');
+            showError("Delete functionality is not implemented yet.");
         });
         
         // Initialize DataTable if available
         if ($.fn.DataTable) {
             $('#archivesTable').DataTable({
-                "order": [[1, "desc"]], // Sort by date descending
+                "order": [[1, "desc"]],  // Sort by time descending
                 "pageLength": 25,
-                "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]]
+                "responsive": true
             });
         }
     });

@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from citadel.models import db
 from citadel.models.source import Source
 from citadel.models.job import Job
+from citadel.models.schedule import Schedule
 
 sources_bp = Blueprint('sources', __name__, url_prefix='/sources')
 
@@ -131,11 +132,33 @@ def delete_source(source_id):
         flash('You do not have permission to delete this source.', 'danger')
         return redirect(url_for('sources.list_sources'))
     
-    # Check if source is used in any jobs
-    jobs = Job.query.filter_by(source_id=source_id).count()
-    if jobs > 0:
-        flash('This source cannot be deleted because it is used in backup jobs.', 'danger')
+    # Check if source is used in any schedules
+    schedules = Schedule.query.filter_by(source_id=source_id).count()
+    if schedules > 0:
+        flash('This source cannot be deleted because it is used in backup schedules.', 'danger')
         return redirect(url_for('sources.source_detail', source_id=source.id))
+    
+    # Count associated jobs
+    job_count = Job.query.filter_by(source_id=source_id).count()
+    
+    if job_count > 0:
+        # Preserve job history by setting source_id to NULL
+        jobs = Job.query.filter_by(source_id=source_id).all()
+        for job in jobs:
+            # Store the source name in job metadata before removing the relationship
+            metadata = job.get_metadata() or {}
+            if 'source_info' not in metadata:
+                metadata['source_info'] = {
+                    'name': source.name,
+                    'path': source.path,
+                    'type': source.source_type
+                }
+                job.set_metadata(metadata)
+            
+            # Set source_id to NULL
+            job.source_id = None
+        
+        flash(f'Source info preserved in {job_count} job records.', 'info')
     
     # Delete source
     db.session.delete(source)

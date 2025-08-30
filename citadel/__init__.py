@@ -92,6 +92,10 @@ def create_app(config=None):
         scheduler = init_scheduler(app)
         # Register shutdown function
         atexit.register(shutdown_scheduler)
+        
+        # Register mount scheduler shutdown
+        from citadel.backup.mount_scheduler import shutdown_mount_scheduler
+        atexit.register(shutdown_mount_scheduler)
     else:
         app.logger.info("Scheduler disabled via environment variable")
     

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container-fluid">
     <h1 class="mb-4"><i class="fas fa-tasks me-2"></i>Jobs</h1>
-    
+
     <div class="card shadow">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Job History</h5>
@@ -31,49 +31,59 @@
                             <td>{{ job.id }}</td>
                             <td>
                                 {% if job.job_type == 'create' %}
-                                    <span class="badge bg-primary">Create</span>
+                                <span class="badge bg-primary">Create</span>
                                 {% elif job.job_type == 'prune' %}
-                                    <span class="badge bg-warning">Prune</span>
+                                <span class="badge bg-warning">Prune</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">{{ job.job_type }}</span>
+                                <span class="badge bg-secondary">{{ job.job_type }}</span>
                                 {% endif %}
                             </td>
                             <td>{{ job.repository.name }}</td>
                             <td>
                                 {% if job.source %}
-                                    <a href="{{ url_for('sources.source_detail', source_id=job.source.id) }}">
-                                        {{ job.source.name }}
-                                        {% if job.source.source_type == 'local' %}
-                                        <span class="badge bg-primary">Local</span>
-                                        {% else %}
-                                        <span class="badge bg-success">SSH</span>
-                                        {% endif %}
-                                    </a>
+                                <a href="{{ url_for('sources.source_detail', source_id=job.source.id) }}">
+                                    {{ job.source.name }}
+                                    {% if job.source.source_type == 'local' %}
+                                    <span class="badge bg-primary">Local</span>
+                                    {% else %}
+                                    <span class="badge bg-success">SSH</span>
+                                    {% endif %}
+                                </a>
+                                {% elif job.get_metadata() and job.get_metadata().get('source_info') %}
+                                <span class="text-muted">
+                                    {{ job.get_metadata().get('source_info').get('name', 'Unknown') }}
+                                    {% if job.get_metadata().get('source_info').get('type') == 'local' %}
+                                    <span class="badge bg-primary">Local</span>
+                                    {% else %}
+                                    <span class="badge bg-success">SSH</span>
+                                    {% endif %}
+                                    <span class="badge bg-secondary">Deleted</span>
+                                </span>
                                 {% elif job.source_path %}
-                                    <span title="{{ job.source_path }}">Custom Path</span>
+                                <span title="{{ job.source_path }}">Custom Path</span>
                                 {% else %}
-                                    -
+                                -
                                 {% endif %}
                             </td>
                             <td>
                                 {% if job.status == 'running' %}
-                                    <span class="badge bg-warning">Running</span>
+                                <span class="badge bg-warning">Running</span>
                                 {% elif job.status == 'success' %}
-                                    <span class="badge bg-success">Success</span>
+                                <span class="badge bg-success">Success</span>
                                 {% elif job.status == 'failed' %}
-                                    <span class="badge bg-danger">Failed</span>
+                                <span class="badge bg-danger">Failed</span>
                                 {% elif job.status == 'cancelled' %}
-                                    <span class="badge bg-secondary">Cancelled</span>
+                                <span class="badge bg-secondary">Cancelled</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">{{ job.status }}</span>
+                                <span class="badge bg-secondary">{{ job.status }}</span>
                                 {% endif %}
                             </td>
                             <td>{{ job.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                             <td>
                                 {% if job.completed_at %}
-                                    {{ job.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {{ job.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}
                                 {% else %}
-                                    -
+                                -
                                 {% endif %}
                             </td>
                             <td>
@@ -102,20 +112,20 @@
 
 {% block scripts %}
 <script>
-    $(document).ready(function() {
+    $(document).ready(function () {
         // Handle cancel job button click
-        $('.cancel-job-btn').click(function() {
+        $('.cancel-job-btn').click(function () {
             var jobId = $(this).data('job-id');
             if (confirm('Are you sure you want to cancel job #' + jobId + '? This cannot be undone.')) {
                 $.ajax({
                     url: "{{ url_for('backup.api_cancel_job', job_id=0) }}".replace('0', jobId),
                     type: 'POST',
-                    success: function(response) {
+                    success: function (response) {
                         // Show success message and reload the page
                         alert('Job cancelled successfully');
                         window.location.reload();
                     },
-                    error: function(xhr) {
+                    error: function (xhr) {
                         // Show error message
                         var errorMessage = 'Failed to cancel job';
                         if (xhr.responseJSON && xhr.responseJSON.error) {

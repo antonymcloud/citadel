@@ -10,6 +10,9 @@ A web interface for Borg backup, allowing you to manage repositories, create bac
 - Schedule automated backups (daily, weekly, or monthly)
 - View backup history and logs
 - Prune old backups with configurable retention policies
+- Mount and browse archives directly through the web interface
+- Batch download files and folders from archives
+- Automatic cleanup of orphaned mounts
 
 ## Installation
 
@@ -64,6 +67,10 @@ citadel/
 ├── utils/           # Utility functions and helpers
 └── __init__.py      # Application factory
 ```
+
+## Documentation
+
+- [Mount Management](docs/mount_management.md) - Managing archive mounts and cleanup
 
 ## License
 

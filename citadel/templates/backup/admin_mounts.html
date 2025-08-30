@@ -1,0 +1,317 @@
+{% extends "common/base.html" %}
+
+{% block title %}Archive Mounts - Administration{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Archive Mount Management</h1>
+    
+    <div class="alert alert-info">
+        <strong>Note:</strong> This page allows administrators to manage mounted archives and clean up orphaned mounts.
+    </div>
+    
+    <!-- Active Mounts Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="card-title mb-0">Active Mounts ({{ active_mounts|length }})</h5>
+        </div>
+        <div class="card-body">
+            {% if active_mounts %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Archive Name</th>
+                                <th>Mount Point</th>
+                                <th>Mounted At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mount in active_mounts %}
+                                <tr>
+                                    <td>{{ mount.job_id }}</td>
+                                    <td>{{ mount.archive_name }}</td>
+                                    <td><code>{{ mount.mount_point }}</code></td>
+                                    <td>{{ mount.mounted_at }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger unmount-btn" 
+                                                data-job-id="{{ mount.job_id }}"
+                                                data-mount-point="{{ mount.mount_point }}">
+                                            Unmount
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">No active mounts found.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Orphaned Mounts Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="card-title mb-0">Orphaned Mounts ({{ orphaned_mounts|length }})</h5>
+        </div>
+        <div class="card-body">
+            {% if orphaned_mounts %}
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> These mounts have been active for more than 24 hours and may be orphaned.
+                </div>
+                
+                <div class="mb-3">
+                    <button id="cleanup-orphaned" class="btn btn-warning">
+                        <i class="fas fa-broom"></i> Clean Up Orphaned Mounts
+                    </button>
+                    
+                    <div class="form-check form-check-inline ml-3">
+                        <input class="form-check-input" type="checkbox" id="force-cleanup" value="true">
+                        <label class="form-check-label" for="force-cleanup">Force immediate unmount</label>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Archive Name</th>
+                                <th>Mount Point</th>
+                                <th>Mounted At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mount in orphaned_mounts %}
+                                <tr>
+                                    <td>{{ mount.job_id }}</td>
+                                    <td>{{ mount.archive_name }}</td>
+                                    <td><code>{{ mount.mount_point }}</code></td>
+                                    <td>{{ mount.mounted_at }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger unmount-btn" 
+                                                data-job-id="{{ mount.job_id }}"
+                                                data-mount-point="{{ mount.mount_point }}">
+                                            Unmount
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-success">No orphaned mounts found. All mounts are under 24 hours old.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- System Mounts Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="card-title mb-0">System Borg Mounts ({{ system_mounts|length }})</h5>
+        </div>
+        <div class="card-body">
+            {% if system_mounts %}
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> These are FUSE mounts found in the system that appear to be Borg mounts.
+                    Some may not be tracked by the application.
+                </div>
+                
+                <div class="mb-3">
+                    <button id="force-unmount-all" class="btn btn-danger">
+                        <i class="fas fa-bomb"></i> Force Unmount All
+                    </button>
+                    <small class="text-muted ml-2">Use with caution! This will forcibly unmount all Borg mounts.</small>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Mount Point</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mount in system_mounts %}
+                                <tr>
+                                    <td>{{ mount.device }}</td>
+                                    <td><code>{{ mount.mount_point }}</code></td>
+                                    <td>{{ mount.type }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-success">No system Borg mounts found.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal for confirmation -->
+<div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="confirmModalBody">
+                Are you sure you want to perform this action?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmModalBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Result Modal -->
+<div class="modal fade" id="resultModal" tabindex="-1" role="dialog" aria-labelledby="resultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultModalLabel">Operation Result</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="resultMessage" class="alert alert-info"></div>
+                <div id="resultDetails" class="card">
+                    <div class="card-header">Details</div>
+                    <div class="card-body">
+                        <pre id="resultJson" class="pre-scrollable"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="refreshPageBtn">Refresh Page</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Unmount button click handler
+    $('.unmount-btn').click(function() {
+        const jobId = $(this).data('job-id');
+        const mountPoint = $(this).data('mount-point');
+        
+        $('#confirmModalLabel').text('Confirm Unmount');
+        $('#confirmModalBody').html(`Are you sure you want to unmount archive at <code>${mountPoint}</code>?`);
+        $('#confirmModalBtn').data('action', 'unmount').data('job-id', jobId);
+        $('#confirmModal').modal('show');
+    });
+    
+    // Cleanup orphaned mounts button click handler
+    $('#cleanup-orphaned').click(function() {
+        const force = $('#force-cleanup').is(':checked');
+        
+        $('#confirmModalLabel').text('Confirm Cleanup');
+        $('#confirmModalBody').html(`Are you sure you want to clean up all orphaned mounts?${force ? '<br><strong>Warning:</strong> Force option is enabled!' : ''}`);
+        $('#confirmModalBtn').data('action', 'cleanup').data('force', force);
+        $('#confirmModal').modal('show');
+    });
+    
+    // Force unmount all button click handler
+    $('#force-unmount-all').click(function() {
+        $('#confirmModalLabel').text('Confirm Force Unmount All');
+        $('#confirmModalBody').html(`<div class="alert alert-danger">Warning: This will forcibly unmount ALL Borg mounts in the system. This is potentially destructive and should only be used as a last resort.</div>Are you absolutely sure you want to proceed?`);
+        $('#confirmModalBtn').data('action', 'force-unmount-all');
+        $('#confirmModal').modal('show');
+    });
+    
+    // Confirm modal button click handler
+    $('#confirmModalBtn').click(function() {
+        const action = $(this).data('action');
+        
+        $('#confirmModal').modal('hide');
+        
+        if (action === 'unmount') {
+            const jobId = $(this).data('job-id');
+            unmountArchive(jobId);
+        } else if (action === 'cleanup') {
+            const force = $(this).data('force');
+            cleanupOrphaned(force);
+        } else if (action === 'force-unmount-all') {
+            forceUnmountAll();
+        }
+    });
+    
+    // Refresh page button click handler
+    $('#refreshPageBtn').click(function() {
+        location.reload();
+    });
+    
+    // Function to unmount an archive
+    function unmountArchive(jobId) {
+        $.ajax({
+            url: `/backup/admin/mounts/unmount/${jobId}`,
+            method: 'POST',
+            success: function(response) {
+                showResultModal('Success', response.message, response);
+            },
+            error: function(xhr) {
+                showResultModal('Error', xhr.responseJSON?.message || 'An error occurred', xhr.responseJSON);
+            }
+        });
+    }
+    
+    // Function to cleanup orphaned mounts
+    function cleanupOrphaned(force) {
+        $.ajax({
+            url: '/backup/admin/mounts/cleanup',
+            method: 'POST',
+            data: {
+                force: force
+            },
+            success: function(response) {
+                showResultModal('Success', response.message, response);
+            },
+            error: function(xhr) {
+                showResultModal('Error', xhr.responseJSON?.message || 'An error occurred', xhr.responseJSON);
+            }
+        });
+    }
+    
+    // Function to force unmount all mounts
+    function forceUnmountAll() {
+        $.ajax({
+            url: '/backup/admin/mounts/force-unmount',
+            method: 'POST',
+            success: function(response) {
+                showResultModal('Success', response.message, response);
+            },
+            error: function(xhr) {
+                showResultModal('Error', xhr.responseJSON?.message || 'An error occurred', xhr.responseJSON);
+            }
+        });
+    }
+    
+    // Function to show the result modal
+    function showResultModal(title, message, data) {
+        $('#resultModalLabel').text(title);
+        $('#resultMessage').text(message);
+        $('#resultJson').text(JSON.stringify(data, null, 2));
+        $('#resultModal').modal('show');
+    }
+});
+</script>
+{% endblock %}
